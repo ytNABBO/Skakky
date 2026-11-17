@@ -4,3 +4,20 @@ body {
     background-color: #202020;
     color: white;
 }
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: min(90vw, 480px);
+    aspect-ratio: 1;
+    margin: 24px auto;
+    border: 2px solid #111;
+}
+
+.square.light {
+    background-color: #f0d9b5;
+}
+
+.square.dark {
+    background-color: #b58863;
+}
