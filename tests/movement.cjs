@@ -333,3 +333,33 @@ for (let cycle = 1; cycle <= 4; cycle++) {
 assert.equal(playMove('g1', 'f3'), false, 'The game must stop accepting moves after fivefold repetition.');
 
 console.log('PASS: fivefold repetition, position identity, first occurrence and redraws.');
+
+const pinnedClaimPosition = { e1: 'K', e2: 'R', a8: 'k', e8: 'r' };
+setDrawPosition(pinnedClaimPosition, 98);
+assert(vm.runInContext('claimDrawButton.hidden', context), 'The claim is unavailable with two half-moves still required.');
+assert.equal(vm.runInContext('claimFiftyMoveDraw("e2-e3")', context), false);
+
+setDrawPosition(pinnedClaimPosition, 99);
+const intendedMoves = vm.runInContext('getFiftyMoveClaimMoves().map(move => move.value)', context);
+assert(intendedMoves.includes('e2-e3'), 'A legal quiet move can be nominated.');
+assert(!intendedMoves.includes('e2-f2'), 'A pinned piece cannot nominate an illegal move.');
+assert(!intendedMoves.includes('e2-e8'), 'A capture resets the clock and cannot be nominated.');
+assert.equal(vm.runInContext('claimFiftyMoveDraw()', context), false, 'At 99 half-moves a nomination is required.');
+assert.equal(vm.runInContext('claimFiftyMoveDraw("e2-e3")', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed under the 50-move rule.');
+assert.equal(vm.runInContext('currentPosition[6][4]', context), 'R', 'The intended move must not be played.');
+assert.equal(vm.runInContext('currentPlayer', context), 'white');
+assert.equal(vm.runInContext('halfmoveClock', context), 99);
+assert.equal(turnMessage('white'), 'Draw claimed under the 50-move rule.', 'A redraw must preserve the result.');
+
+vm.runInContext('fiftyMoveDrawClaimed = false;', context);
+const pawnOnlyClaimPosition = { a1: 'K', b1: 'B', a2: 'P', b2: 'P', c2: 'P', h8: 'k' };
+setDrawPosition(pawnOnlyClaimPosition, 99);
+assert(vm.runInContext('claimDrawButton.hidden', context), 'Pawn moves cannot be nominated.');
+setDrawPosition(pawnOnlyClaimPosition, 100);
+assert.equal(vm.runInContext('turn.textContent', context), 'White to move', 'The 50-move draw requires a claim.');
+assert(!vm.runInContext('claimDrawButton.hidden', context), 'At 100 half-moves no nomination is required.');
+assert.equal(vm.runInContext('claimFiftyMoveDraw()', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed under the 50-move rule.');
+
+console.log('PASS: 50-move claims at the threshold or with a legal intended move.');

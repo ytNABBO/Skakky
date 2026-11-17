@@ -3,12 +3,17 @@ const board = document.getElementById("board");
 const status = document.getElementById("status");
 const turn = document.getElementById("turn");
 const promotionDialog = document.getElementById("promotion");
+const claimDrawButton = document.getElementById("claim-draw");
+const drawClaimDialog = document.getElementById("draw-claim");
+const drawClaimMove = document.getElementById("draw-claim-move");
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
 let pendingPromotion = null;
 let enPassant = null;
 let halfmoveClock = 0;
+let fiftyMoveDrawClaimed = false;
+const claimHalfmoveLimit = 100; // 50 moves by each player.
 const drawHalfmoveLimit = 150; // 75 moves by each player.
 const drawRepetitionLimit = 5;
 const positionOccurrences = new Map();
@@ -420,6 +425,49 @@ function recordCurrentPosition() {
     positionOccurrences.set(key, occurrences + 1);
 }
 
+function getFiftyMoveClaimMoves() {
+    const claimMoves = [];
+    if (halfmoveClock !== claimHalfmoveLimit - 1) {
+        return claimMoves;
+    }
+
+    for (let row = 0; row < 8; row++) {
+        for (let column = 0; column < 8; column++) {
+            const piece = currentPosition[row][column];
+            if (piece === "" || piece.toLowerCase() === "p" || getPieceColor(piece) !== currentPlayer) {
+                continue;
+            }
+
+            const origin = `${files[column]}${8 - row}`;
+            const { moves } = getLegalMoveOptions(row, column);
+            for (const destination of moves) {
+                claimMoves.push({
+                    value: `${origin}-${destination}`,
+                    label: `${pieceNames[piece.toLowerCase()]} from ${origin} to ${destination}`
+                });
+            }
+        }
+    }
+
+    return claimMoves;
+}
+
+function claimFiftyMoveDraw(intendedMove = "") {
+    if (gameResult !== null || pendingPromotion !== null) {
+        return false;
+    }
+
+    if (halfmoveClock < claimHalfmoveLimit
+        && !getFiftyMoveClaimMoves().some(move => move.value === intendedMove)) {
+        return false;
+    }
+
+    fiftyMoveDrawClaimed = true;
+    renderBoard();
+    turn.focus();
+    return true;
+}
+
 // Select a piece, show its destinations, and apply the chosen move.
 function clearSelection() {
     if (selectedSquare !== null) {
@@ -588,7 +636,9 @@ function renderBoard() {
     const checkedKing = findCheckedKing(currentPosition, currentPlayer);
     const playerName = currentPlayer === "white" ? "White" : "Black";
     gameResult = null;
-    if (!hasLegalMove(currentPlayer)) {
+    if (fiftyMoveDrawClaimed) {
+        gameResult = "Draw claimed under the 50-move rule.";
+    } else if (!hasLegalMove(currentPlayer)) {
         const winner = currentPlayer === "white" ? "Black" : "White";
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
     } else if (halfmoveClock >= drawHalfmoveLimit) {
@@ -597,6 +647,8 @@ function renderBoard() {
         gameResult = "Draw by fivefold repetition.";
     }
 
+    claimDrawButton.hidden = gameResult !== null
+        || (halfmoveClock < claimHalfmoveLimit && getFiftyMoveClaimMoves().length === 0);
     clearSelection();
     board.replaceChildren();
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
@@ -683,6 +735,42 @@ promotionDialog.addEventListener("close", () => {
     const promotion = promotionDialog.returnValue;
     if (target !== null && promotionChoices.includes(promotion)) {
         movePiece(target.row, target.column, promotion);
+    }
+});
+
+claimDrawButton.addEventListener("click", () => {
+    if (gameResult !== null || pendingPromotion !== null) {
+        return;
+    }
+    if (halfmoveClock >= claimHalfmoveLimit) {
+        claimFiftyMoveDraw();
+        return;
+    }
+
+    const moves = getFiftyMoveClaimMoves();
+    if (moves.length === 0) {
+        return;
+    }
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choose a move";
+    placeholder.disabled = true;
+    drawClaimMove.replaceChildren(placeholder);
+    for (const move of moves) {
+        const option = document.createElement("option");
+        option.value = move.value;
+        option.textContent = move.label;
+        drawClaimMove.appendChild(option);
+    }
+    drawClaimMove.value = "";
+    drawClaimDialog.returnValue = "";
+    drawClaimDialog.showModal();
+});
+
+drawClaimDialog.addEventListener("close", () => {
+    if (drawClaimDialog.returnValue === "claim") {
+        claimFiftyMoveDraw(drawClaimMove.value);
     }
 });
 
