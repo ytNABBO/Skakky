@@ -116,7 +116,7 @@ button.square:focus-visible {
     box-shadow: inset 0 0 0 4px #17683e;
 }
 
-.square.pawn-advance::after {
+.square.move-target::after {
     content: "";
     width: 25%;
     aspect-ratio: 1;
@@ -125,7 +125,7 @@ button.square:focus-visible {
     pointer-events: none;
 }
 
-.square.pawn-capture::after {
+.square.capture-target::after {
     content: "";
     position: absolute;
     inset: 4px;
