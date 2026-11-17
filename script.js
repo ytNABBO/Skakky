@@ -8,6 +8,14 @@ let selectedSquare = null;
 let gameResult = null;
 let pendingPromotion = null;
 const promotionChoices = ["q", "r", "b", "n"];
+const castlingRights = {
+    white: { kingside: true, queenside: true },
+    black: { kingside: true, queenside: true }
+};
+const castlingSides = [
+    { name: "kingside", kingColumn: 6, rookColumn: 7, rookTarget: 5, emptyColumns: [5, 6] },
+    { name: "queenside", kingColumn: 2, rookColumn: 0, rookTarget: 3, emptyColumns: [1, 2, 3] }
+];
 
 // The board uses uppercase letters for White and lowercase letters for Black.
 const startingPosition = [
@@ -268,22 +276,79 @@ function findCheckedKing(position, player) {
     return isSquareAttacked(position, row, column, opponent) ? { row, column } : null;
 }
 
+function getCastlingMoves(row, column, player) {
+    const homeRow = player === "white" ? 7 : 0;
+    const opponent = player === "white" ? "black" : "white";
+    if (row !== homeRow || column !== 4 || isSquareAttacked(currentPosition, row, column, opponent)) {
+        return [];
+    }
+
+    // Check the square the king crosses with its original square now empty.
+    const transitPosition = currentPosition.map(rank => rank.slice());
+    transitPosition[row][column] = "";
+    const rook = player === "white" ? "R" : "r";
+    const moves = [];
+
+    for (const side of castlingSides) {
+        if (!castlingRights[player][side.name] || currentPosition[row][side.rookColumn] !== rook) {
+            continue;
+        }
+        if (side.emptyColumns.some(emptyColumn => currentPosition[row][emptyColumn] !== "")) {
+            continue;
+        }
+        if (!isSquareAttacked(transitPosition, row, side.rookTarget, opponent)) {
+            moves.push(`${files[side.kingColumn]}${8 - row}`);
+        }
+    }
+
+    return moves;
+}
+
+function movePieceOnBoard(position, fromRow, fromColumn, toRow, toColumn, piece) {
+    position[fromRow][fromColumn] = "";
+    position[toRow][toColumn] = piece;
+
+    if (piece.toLowerCase() === "k" && fromRow === toRow && fromColumn === 4) {
+        const side = castlingSides.find(option => option.kingColumn === toColumn);
+        if (side !== undefined) {
+            position[toRow][side.rookTarget] = position[toRow][side.rookColumn];
+            position[toRow][side.rookColumn] = "";
+            return side.name;
+        }
+    }
+    return null;
+}
+
 function getLegalMoveOptions(row, column) {
     const { moves, captures } = getMoveOptions(row, column);
     const piece = currentPosition[row][column];
     const player = getPieceColor(piece);
+    if (piece.toLowerCase() === "k") {
+        moves.push(...getCastlingMoves(row, column, player));
+    }
 
-    // Try each destination on a copy, including the removal of any captured piece.
+    // Try each destination on a copy, including the rook's move when castling.
     function keepsKingSafe(destination) {
         const targetRow = 8 - Number(destination[1]);
         const targetColumn = files.indexOf(destination[0]);
         const position = currentPosition.map(rank => rank.slice());
-        position[row][column] = "";
-        position[targetRow][targetColumn] = piece;
+        movePieceOnBoard(position, row, column, targetRow, targetColumn, piece);
         return findCheckedKing(position, player) === null;
     }
 
     return { moves: moves.filter(keepsKingSafe), captures: captures.filter(keepsKingSafe) };
+}
+
+function revokeRookCastlingRight(piece, row, column) {
+    if (piece.toLowerCase() !== "r") {
+        return;
+    }
+    const player = getPieceColor(piece);
+    const homeRow = player === "white" ? 7 : 0;
+    const side = castlingSides.find(option => option.rookColumn === column);
+    if (row === homeRow && side !== undefined) {
+        castlingRights[player][side.name] = false;
+    }
 }
 
 function hasLegalMove(player) {
@@ -413,8 +478,13 @@ function movePiece(row, column, promotion = null) {
     if (promotion !== null) {
         placedPiece = currentPlayer === "white" ? promotion.toUpperCase() : promotion;
     }
-    currentPosition[fromRow][fromColumn] = "";
-    currentPosition[row][column] = placedPiece;
+    const castledSide = movePieceOnBoard(currentPosition, fromRow, fromColumn, row, column, placedPiece);
+    if (piece.toLowerCase() === "k") {
+        castlingRights[currentPlayer].kingside = false;
+        castlingRights[currentPlayer].queenside = false;
+    }
+    revokeRookCastlingRight(piece, fromRow, fromColumn);
+    revokeRookCastlingRight(capturedPiece, row, column);
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     renderBoard();
@@ -429,8 +499,11 @@ function movePiece(row, column, promotion = null) {
     if (promotion !== null) {
         result += ` and promoted to a ${pieceNames[promotion]}`;
     }
+    const moveMessage = castledSide === null
+        ? `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}`
+        : `${movingPlayer} castled ${castledSide}`;
     const nextInstruction = gameResult === null ? `${turn.textContent}.` : "Reload the page to play again.";
-    status.textContent = `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}. ${nextInstruction}`;
+    status.textContent = `${moveMessage}. ${nextInstruction}`;
     if (gameResult !== null) {
         turn.focus();
     } else {

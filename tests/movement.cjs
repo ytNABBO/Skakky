@@ -182,3 +182,34 @@ setPosition({ a1: 'K', b3: 'B', c3: 'k', c2: 'p', a2: 'r', a8: 'r' });
 assert.equal(turnMessage('white'), 'White to move (in check)', 'A capture by another piece can prevent checkmate.');
 
 console.log('PASS: checkmate for both colors, stalemate and a capture-only check response.');
+
+const whiteCastlingPosition = { e1: 'K', a1: 'R', h1: 'R', d8: 'k' };
+function castlingDestinations(kingSquare) {
+    const rank = kingSquare[1];
+    const { moves } = legalOptions(kingSquare);
+    return [`c${rank}`, `g${rank}`].filter(square => moves.includes(square));
+}
+
+setPosition(whiteCastlingPosition);
+assert.deepEqual(castlingDestinations('e1'), ['c1', 'g1']);
+assert.equal(vm.runInContext('JSON.stringify(currentPosition)', context), JSON.stringify(context.fixture),
+    'Checking castling options must leave both king and rooks in place.');
+setPosition({ e8: 'k', a8: 'r', h8: 'r', d1: 'K' });
+assert.deepEqual(castlingDestinations('e8'), ['c8', 'g8']);
+setPosition({ ...whiteCastlingPosition, b1: 'N', f1: 'B' });
+assert.deepEqual(castlingDestinations('e1'), [], 'All squares between each rook and the king must be empty.');
+setPosition({ ...whiteCastlingPosition, e8: 'r' });
+assert.deepEqual(castlingDestinations('e1'), [], 'A king in check cannot castle.');
+for (const square of ['f8', 'g8']) {
+    setPosition({ ...whiteCastlingPosition, [square]: 'r' });
+    assert.deepEqual(castlingDestinations('e1'), ['c1'], 'An attacked transit or destination square blocks castling.');
+}
+setPosition({ ...whiteCastlingPosition, b8: 'r' });
+assert.deepEqual(castlingDestinations('e1'), ['c1', 'g1'], 'An attack on b1 does not block queenside castling.');
+setPosition({ ...whiteCastlingPosition, h1: '' });
+assert.deepEqual(castlingDestinations('e1'), ['c1'], 'Castling requires the corresponding rook.');
+setPosition(whiteCastlingPosition);
+vm.runInContext('castlingRights.white.kingside = false;', context);
+assert.deepEqual(castlingDestinations('e1'), ['c1'], 'A rook returning to its original square cannot restore lost castling rights.');
+
+console.log('PASS: castling for both colors, path clearance, attacked squares, missing rooks and lost rights.');

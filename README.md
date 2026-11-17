@@ -11,15 +11,18 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Check detection and move validation that keeps the moving player's king safe.
 - Checkmate and stalemate detection with a result that ends the game.
 - Pawn promotion to a queen, rook, bishop or knight for either color.
+- Kingside and queenside castling for either color.
 - Alternating turns and keyboard-accessible move selection.
 
-Castling, en passant and other draw conditions are still to come.
+En passant and other draw conditions are still to come.
 
 ## How it works
 
 Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
 
 When you select a destination on the last rank for a pawn, choose the piece to promote it to. Cancel or press Escape to return to the board and choose a move again.
+
+To castle, select the king and move it two squares toward the rook. The rook moves automatically. The king and rook must never have moved, the squares between them must be empty and the king cannot start in, move through or end in check.
 
 Blue dots mark empty destinations; red rings mark capture targets.
 During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
@@ -39,7 +42,7 @@ With Node.js installed, run:
 node tests/movement.cjs
 ```
 
-The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks selected positions for king safety, checkmate and stalemate. It requires no extra packages.
+The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks selected positions for king safety, castling, checkmate and stalemate. It requires no extra packages.
 
 ## Project files
 
