@@ -173,6 +173,14 @@ function getBishopMoves(row, column) {
     return getSlidingMoves(row, column, [[-1, -1], [-1, 1], [1, -1], [1, 1]]);
 }
 
+function getQueenMoves(row, column) {
+    return getSlidingMoves(row, column, [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1], [0, 1],
+        [1, -1], [1, 0], [1, 1]
+    ]);
+}
+
 function getMoveOptions(row, column) {
     const piece = currentPosition[row][column].toLowerCase();
     if (piece === "p") {
@@ -186,6 +194,9 @@ function getMoveOptions(row, column) {
     }
     if (piece === "b") {
         return getBishopMoves(row, column);
+    }
+    if (piece === "q") {
+        return getQueenMoves(row, column);
     }
     return { moves: [], captures: [] };
 }
@@ -203,7 +214,7 @@ function clearSelection() {
         square.setAttribute("aria-label", getSquareLabel(square.dataset.piece, square.dataset.position));
     }
 
-    status.textContent = `Select a ${currentPlayer} pawn, knight, rook or bishop, then choose a marked square.`;
+    status.textContent = `Select a ${currentPlayer} pawn, knight, rook, bishop or queen, then choose a marked square.`;
 }
 
 function selectPiece(square, piece, row, column) {
@@ -225,7 +236,7 @@ function selectPiece(square, piece, row, column) {
     const pieceName = pieceNames[piece.toLowerCase()];
     let message = `Selected ${currentPlayer} ${pieceName} on ${square.dataset.position}.`;
 
-    if (["p", "n", "r", "b"].includes(piece.toLowerCase())) {
+    if (["p", "n", "r", "b", "q"].includes(piece.toLowerCase())) {
         const { moves, captures } = getMoveOptions(row, column);
 
         for (const position of moves) {
