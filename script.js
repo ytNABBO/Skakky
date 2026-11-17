@@ -4,6 +4,7 @@ const status = document.getElementById("status");
 const turn = document.getElementById("turn");
 let currentPlayer = "white";
 let selectedSquare = null;
+let gameResult = null;
 
 // The board uses uppercase letters for White and lowercase letters for Black.
 const startingPosition = [
@@ -282,6 +283,24 @@ function getLegalMoveOptions(row, column) {
     return { moves: moves.filter(keepsKingSafe), captures: captures.filter(keepsKingSafe) };
 }
 
+function hasLegalMove(player) {
+    for (let row = 0; row < 8; row++) {
+        for (let column = 0; column < 8; column++) {
+            const piece = currentPosition[row][column];
+            if (piece === "" || getPieceColor(piece) !== player) {
+                continue;
+            }
+
+            const { moves, captures } = getLegalMoveOptions(row, column);
+            if (moves.length > 0 || captures.length > 0) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 // Select a piece, show its destinations, and apply the chosen move.
 function clearSelection() {
     if (selectedSquare !== null) {
@@ -296,11 +315,13 @@ function clearSelection() {
         square.setAttribute("aria-label", getSquareLabel(square.dataset.piece, square.dataset.position));
     }
 
-    status.textContent = `Select a ${currentPlayer} piece, then choose a marked square.`;
+    status.textContent = gameResult === null
+        ? `Select a ${currentPlayer} piece, then choose a marked square.`
+        : "Reload the page to play again.";
 }
 
 function selectPiece(square, piece, row, column) {
-    if (piece === "" || getPieceColor(piece) !== currentPlayer || currentPosition[row][column] !== piece) {
+    if (gameResult !== null || piece === "" || getPieceColor(piece) !== currentPlayer || currentPosition[row][column] !== piece) {
         return;
     }
 
@@ -348,7 +369,7 @@ function selectPiece(square, piece, row, column) {
 }
 
 function movePiece(row, column) {
-    if (selectedSquare === null) {
+    if (gameResult !== null || selectedSquare === null) {
         return false;
     }
 
@@ -375,37 +396,47 @@ function movePiece(row, column) {
     renderBoard();
 
     const nextPawn = currentPlayer === "white" ? "P" : "p";
-    const nextPiece = board.querySelector(`button.square[data-piece="${nextPawn}"]`)
+    const nextPiece = board.querySelector(`button.square:enabled[data-piece="${nextPawn}"]`)
         || board.querySelector("button.square:enabled");
-    if (nextPiece !== null) {
-        nextPiece.focus();
-    }
 
     const result = capturedPiece === ""
         ? `moved from ${fromPosition} to ${toPosition}`
         : `from ${fromPosition} captured a ${getPieceColor(capturedPiece)} ${pieceNames[capturedPiece.toLowerCase()]} on ${toPosition}`;
-    status.textContent = `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}. ${turn.textContent}.`;
+    const nextInstruction = gameResult === null ? `${turn.textContent}.` : "Reload the page to play again.";
+    status.textContent = `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}. ${nextInstruction}`;
+    if (gameResult !== null) {
+        turn.focus();
+    } else {
+        nextPiece?.focus();
+    }
     return true;
 }
 
 // Rebuild all 64 squares from the current position.
 function renderBoard() {
-    clearSelection();
-    board.replaceChildren();
     const checkedKing = findCheckedKing(currentPosition, currentPlayer);
     const playerName = currentPlayer === "white" ? "White" : "Black";
-    turn.textContent = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
+    gameResult = null;
+    if (!hasLegalMove(currentPlayer)) {
+        const winner = currentPlayer === "white" ? "Black" : "White";
+        gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
+    }
+
+    clearSelection();
+    board.replaceChildren();
+    const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
+    turn.textContent = gameResult ?? turnMessage;
     turn.dataset.player = currentPlayer;
 
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
             const piece = currentPosition[row][column];
-            const isCurrentPlayerPiece = piece !== "" && getPieceColor(piece) === currentPlayer;
+            const canSelect = gameResult === null && piece !== "" && getPieceColor(piece) === currentPlayer;
             const square = document.createElement("button");
             square.type = "button";
             square.classList.add("square");
 
-            if (isCurrentPlayerPiece) {
+            if (canSelect) {
                 square.setAttribute("aria-pressed", "false");
                 square.addEventListener("click", () => selectPiece(square, piece, row, column));
             } else {
@@ -464,13 +495,10 @@ function renderBoard() {
 }
 
 board.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && selectedSquare !== null) {
         const previousSelection = selectedSquare;
         clearSelection();
-
-        if (previousSelection !== null) {
-            previousSelection.focus();
-        }
+        previousSelection.focus();
     }
 });
 

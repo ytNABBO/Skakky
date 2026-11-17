@@ -9,16 +9,18 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Responsive 8×8 board with coordinates and Unicode pieces.
 - Basic move and capture generation for all six piece types.
 - Check detection and move validation that keeps the moving player's king safe.
+- Checkmate and stalemate detection with a result that ends the game.
 - Alternating turns and keyboard-accessible move selection.
 
-Checkmate, stalemate, castling, promotion and en passant are still to come.
+Castling, promotion, en passant and other draw conditions are still to come.
 
 ## How it works
 
 Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
 
 Blue dots mark empty destinations; red rings mark capture targets.
-When a king is in check, its square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
+During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
+If the player to move has no legal moves, the game ends. Checkmate gives the win to the opponent. Stalemate is a draw because the king is safe but the player cannot move.
 Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
 Press Escape to cancel the selection. Reload the page to restore the starting position.
 
@@ -34,11 +36,11 @@ With Node.js installed, run:
 node tests/movement.cjs
 ```
 
-The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks selected positions for king safety. It requires no extra packages.
+The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks selected positions for king safety, checkmate and stalemate. It requires no extra packages.
 
 ## Project files
 
 - `index.html` contains the page structure.
 - `style.css` styles the board and controls.
 - `script.js` stores the position, finds available moves, handles player input and redraws the board.
-- `tests/movement.cjs` checks move and capture generation and king safety.
+- `tests/movement.cjs` checks move generation, king safety and game results.

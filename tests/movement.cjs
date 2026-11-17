@@ -166,3 +166,19 @@ setPosition({ e1: 'K', d2: 'B', e8: 'r', f3: 'n', a8: 'k' });
 assert.deepEqual(Array.from(legalOptions('d2').moves), [], 'Blocking one attack cannot answer a double check.');
 
 console.log('PASS: king safety, pinned pieces, check responses, defended captures and attack directions.');
+
+function turnMessage(player) {
+    context.testPlayer = player;
+    return vm.runInContext('currentPlayer = testPlayer; renderBoard(); turn.textContent;', context);
+}
+
+setPosition({ c6: 'K', b7: 'Q', a8: 'k' });
+assert.equal(turnMessage('black'), 'Checkmate. White wins.');
+setPosition({ c3: 'k', b2: 'q', a1: 'K' });
+assert.equal(turnMessage('white'), 'Checkmate. Black wins.');
+setPosition({ c6: 'K', c7: 'Q', a8: 'k' });
+assert.equal(turnMessage('black'), 'Stalemate. Draw.');
+setPosition({ a1: 'K', b3: 'B', c3: 'k', c2: 'p', a2: 'r', a8: 'r' });
+assert.equal(turnMessage('white'), 'White to move (in check)', 'A capture by another piece can prevent checkmate.');
+
+console.log('PASS: checkmate for both colors, stalemate and a capture-only check response.');
