@@ -16,6 +16,7 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Automatic draws under the 75-move rule and fivefold repetition.
 - Draw claims for threefold repetition and under the 50-move rule, including claims based on an intended move.
 - Draw offers and draws by agreement.
+- Automatic draws in dead positions recognized by insufficient material.
 - Alternating turns and keyboard-accessible move selection.
 
 ## How it works
@@ -31,6 +32,7 @@ To capture en passant, move your adjacent pawn diagonally onto the square the op
 Blue dots mark moves without captures. Red rings mark capture targets, including the empty destination for en passant.
 During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
 If the player to move has no legal moves, the game ends. Checkmate gives the win to the opponent. Stalemate is a draw because the king is safe but the player cannot move.
+The game also draws automatically with just the kings, with one bishop or knight besides the kings, or with bishops as the only remaining pieces besides the kings when all bishops occupy squares of the same color. These are dead positions where neither player can give mate by any legal sequence. See [FIDE Laws of Chess, article 5.2.2](https://handbook.fide.com/chapter/e012023).
 The game ends in a draw when the same position occurs five times, including the starting position if it repeats. To match, the pieces, side to move, castling rights and any legal en passant capture must agree.
 The game also ends in a draw after 75 moves by each player without a pawn move or capture. Checkmate on the final move takes precedence. See [FIDE Laws of Chess, article 9.6](https://handbook.fide.com/chapter/e012023).
 Choose **Claim draw (50-move rule)** when available. You can claim after 50 moves by each player without a pawn move or capture. If one qualifying move is still needed, choose your intended move in the dialog to claim before playing it. See [FIDE Laws of Chess, article 9.3](https://handbook.fide.com/chapter/e012023).
@@ -62,6 +64,6 @@ The test compares all six piece types, both colors and every starting square aga
 
 ## Roadmap
 
-- Automatic draws in dead positions where neither player can give checkmate by any legal sequence.
+- Other dead positions, such as certain locked pawn positions where neither player can give mate.
 - Resignation.
 - Optional chess clocks and results when a player runs out of time.

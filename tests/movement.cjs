@@ -271,7 +271,7 @@ assert.equal(playMove('b3', 'b4'), false, 'The board must stop accepting moves a
 for (const [pieces, from, to, promotion] of [
     [{ a1: 'K', b2: 'P', h8: 'k' }, 'b2', 'b4', null],
     [{ a1: 'K', b2: 'R', b5: 'n', h8: 'k', g7: 'r' }, 'b2', 'b5', null],
-    [{ a1: 'K', b7: 'P', h6: 'k' }, 'b7', 'b8', 'n']
+    [{ a1: 'K', b7: 'P', h6: 'k', h7: 'p' }, 'b7', 'b8', 'n']
 ]) {
     setDrawPosition(pieces, 149);
     assert.equal(playMove(from, to, promotion), true);
@@ -433,3 +433,30 @@ assert.equal(vm.runInContext(repetitionSnapshot, context), beforeAgreement, 'Acc
 assert.equal(playMove('g8', 'f6'), false, 'Play must stop after an accepted offer.');
 
 console.log('PASS: offer timing, cancellation, explicit and implicit decline, and draw by agreement.');
+
+vm.runInContext('declaredResult = null; positionOccurrences.clear(); enPassant = null;', context);
+const deadMaterialPositions = [
+    [{ a1: 'K', h8: 'k' }, 'only the two kings'],
+    [{ a1: 'K', c1: 'B', h8: 'k' }, 'one bishop besides the kings'],
+    [{ a1: 'K', c3: 'N', h8: 'k' }, 'one knight besides the kings'],
+    [{ a1: 'K', c1: 'B', h8: 'k', f8: 'b' }, 'bishops on the same square color']
+];
+
+for (const [pieces, description] of deadMaterialPositions) {
+    setPosition(pieces);
+    assert.equal(vm.runInContext('isDeadByMaterial(currentPosition)', context), true, description);
+    assert.equal(turnMessage('white'), 'Draw by insufficient material.', description);
+    assert.equal(playMove('a1', 'a2'), false, 'A dead game must stop accepting moves.');
+}
+
+for (const [pieces, description] of [
+    [{ a1: 'K', c2: 'N', b3: 'N', h8: 'k' }, 'two knights'],
+    [{ a1: 'K', c1: 'B', h8: 'k', g8: 'b' }, 'bishops on opposite square colors'],
+    [{ a1: 'K', b1: 'P', h8: 'k' }, 'a remaining pawn']
+]) {
+    setPosition(pieces);
+    assert.equal(vm.runInContext('isDeadByMaterial(currentPosition)', context), false, description);
+    assert.notEqual(turnMessage('white'), 'Draw by insufficient material.', description);
+}
+
+console.log('PASS: automatic insufficient-material draws and positions that must remain in play.');

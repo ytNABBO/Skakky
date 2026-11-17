@@ -423,6 +423,36 @@ function hasLegalMove(player) {
     return false;
 }
 
+function isDeadByMaterial(position) {
+    let knightCount = 0;
+    let bishopSquareColor = null;
+
+    for (let row = 0; row < 8; row++) {
+        for (let column = 0; column < 8; column++) {
+            const kind = position[row][column].toLowerCase();
+            if (kind === "" || kind === "k") {
+                continue;
+            }
+            if (kind === "n") {
+                knightCount++;
+                continue;
+            }
+            if (kind !== "b") {
+                return false;
+            }
+
+            const squareColor = (row + column) % 2;
+            if (bishopSquareColor !== null && bishopSquareColor !== squareColor) {
+                return false;
+            }
+            bishopSquareColor = squareColor;
+        }
+    }
+
+    // Only same-color-square bishops or a single knight can remain besides the kings.
+    return knightCount === 0 || (knightCount === 1 && bishopSquareColor === null);
+}
+
 function serializePosition(position, player, rights, enPassantSquare) {
     return JSON.stringify([position, player, rights, enPassantSquare]);
 }
@@ -752,6 +782,8 @@ function renderBoard() {
     } else if (!hasLegalMove(currentPlayer)) {
         const winner = currentPlayer === "white" ? "Black" : "White";
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
+    } else if (isDeadByMaterial(currentPosition)) {
+        gameResult = "Draw by insufficient material.";
     } else if (halfmoveClock >= drawHalfmoveLimit) {
         gameResult = "Draw by the 75-move rule.";
     } else if ((positionOccurrences.get(getPositionKey()) ?? 0) >= drawRepetitionLimit) {
