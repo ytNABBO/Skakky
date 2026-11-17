@@ -39,6 +39,12 @@ function getPieceColor(piece) {
     return piece === piece.toUpperCase() ? "white" : "black";
 }
 
+function getSquareLabel(piece, position) {
+    return piece === ""
+        ? `Empty square ${position}`
+        : `${getPieceColor(piece)} ${pieceNames[piece.toLowerCase()]} on ${position}`;
+}
+
 function getPawnAdvances(row, column) {
     const advances = [];
     const pawn = currentPosition[row][column];
@@ -67,6 +73,36 @@ function getPawnAdvances(row, column) {
     return advances;
 }
 
+function getPawnCaptures(row, column) {
+    const captures = [];
+    const pawn = currentPosition[row][column];
+
+    if (pawn !== "P" && pawn !== "p") {
+        return captures;
+    }
+
+    const nextRow = row + (pawn === "P" ? -1 : 1);
+    if (nextRow < 0 || nextRow > 7) {
+        return captures;
+    }
+
+    for (const offset of [-1, 1]) {
+        const targetColumn = column + offset;
+        if (targetColumn < 0 || targetColumn > 7) {
+            continue;
+        }
+
+        const target = currentPosition[nextRow][targetColumn];
+        // Kings are never captured; check and checkmate will be added later.
+        if (target !== "" && target.toLowerCase() !== "k"
+            && getPieceColor(target) !== getPieceColor(pawn)) {
+            captures.push(`${files[targetColumn]}${8 - nextRow}`);
+        }
+    }
+
+    return captures;
+}
+
 function clearSelection() {
     if (selectedSquare !== null) {
         selectedSquare.classList.remove("selected");
@@ -74,13 +110,13 @@ function clearSelection() {
         selectedSquare = null;
     }
 
-    for (const square of board.querySelectorAll(".pawn-advance")) {
-        square.classList.remove("pawn-advance");
+    for (const square of board.querySelectorAll(".pawn-advance, .pawn-capture")) {
+        square.classList.remove("pawn-advance", "pawn-capture");
         square.disabled = true;
-        square.setAttribute("aria-label", `Empty square ${square.dataset.position}`);
+        square.setAttribute("aria-label", getSquareLabel(square.dataset.piece, square.dataset.position));
     }
 
-    status.textContent = `Select a ${currentPlayer} pawn, then choose a blue-dot square to move.`;
+    status.textContent = `Select a ${currentPlayer} pawn, then choose a marked square to move or capture.`;
 }
 
 function selectPiece(square, piece, row, column) {
@@ -103,6 +139,7 @@ function selectPiece(square, piece, row, column) {
 
     if (piece.toLowerCase() === "p") {
         const advances = getPawnAdvances(row, column);
+        const captures = getPawnCaptures(row, column);
 
         for (const position of advances) {
             const destination = board.querySelector(`[data-position="${position}"]`);
@@ -111,9 +148,22 @@ function selectPiece(square, piece, row, column) {
             destination.setAttribute("aria-label", `Move ${currentPlayer} pawn from ${square.dataset.position} to ${position}`);
         }
 
-        message += advances.length > 0
-            ? ` Forward squares: ${advances.join(", ")}. Choose a blue-dot square to move.`
-            : " No forward squares available.";
+        for (const position of captures) {
+            const destination = board.querySelector(`[data-position="${position}"]`);
+            destination.classList.add("pawn-capture");
+            destination.disabled = false;
+            destination.setAttribute("aria-label", `Capture ${getSquareLabel(destination.dataset.piece, position)} with ${currentPlayer} pawn from ${square.dataset.position}`);
+        }
+
+        if (advances.length > 0) {
+            message += ` Forward squares: ${advances.join(", ")}.`;
+        }
+        if (captures.length > 0) {
+            message += ` Captures: ${captures.join(", ")}.`;
+        }
+        message += advances.length > 0 || captures.length > 0
+            ? " Choose a marked square."
+            : " No pawn destinations available.";
     } else {
         message += " Movement for this piece is not available yet.";
     }
@@ -132,11 +182,16 @@ function movePawn(row, column) {
     const toPosition = `${files[column]}${8 - row}`;
 
     const pawn = currentPlayer === "white" ? "P" : "p";
-    if (currentPosition[fromRow][fromColumn] !== pawn
-        || !getPawnAdvances(fromRow, fromColumn).includes(toPosition)) {
+    if (currentPosition[fromRow][fromColumn] !== pawn) {
         return false;
     }
 
+    const destinations = [...getPawnAdvances(fromRow, fromColumn), ...getPawnCaptures(fromRow, fromColumn)];
+    if (!destinations.includes(toPosition)) {
+        return false;
+    }
+
+    const capturedPiece = currentPosition[row][column];
     currentPosition[fromRow][fromColumn] = "";
     currentPosition[row][column] = pawn;
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
@@ -150,7 +205,10 @@ function movePawn(row, column) {
         nextPiece.focus();
     }
 
-    status.textContent = `${movingPlayer} pawn moved from ${fromPosition} to ${toPosition}. ${turn.textContent}.`;
+    const result = capturedPiece === ""
+        ? `moved from ${fromPosition} to ${toPosition}`
+        : `from ${fromPosition} captured a ${getPieceColor(capturedPiece)} ${pieceNames[capturedPiece.toLowerCase()]} on ${toPosition}`;
+    status.textContent = `${movingPlayer} pawn ${result}. ${turn.textContent}.`;
     return true;
 }
 
@@ -164,15 +222,14 @@ function renderBoard() {
         for (let column = 0; column < 8; column++) {
             const piece = currentPosition[row][column];
             const isCurrentPlayerPiece = piece !== "" && getPieceColor(piece) === currentPlayer;
-            const square = document.createElement(isCurrentPlayerPiece || piece === "" ? "button" : "div");
+            const square = document.createElement("button");
+            square.type = "button";
             square.classList.add("square");
 
             if (isCurrentPlayerPiece) {
-                square.type = "button";
                 square.setAttribute("aria-pressed", "false");
                 square.addEventListener("click", () => selectPiece(square, piece, row, column));
-            } else if (piece === "") {
-                square.type = "button";
+            } else {
                 square.disabled = true;
                 square.addEventListener("click", () => movePawn(row, column));
             }
@@ -187,9 +244,7 @@ function renderBoard() {
             square.dataset.piece = piece;
             square.title = position;
 
-            if (piece === "") {
-                square.setAttribute("aria-label", `Empty square ${position}`);
-            }
+            square.setAttribute("aria-label", getSquareLabel(piece, position));
 
             if (column === 0) {
                 const rankLabel = document.createElement("span");
@@ -214,15 +269,7 @@ function renderBoard() {
                 pieceElement.classList.add("piece", pieceColor);
                 // Request text glyphs instead of emoji for consistent piece styling.
                 pieceElement.textContent = pieceSymbols[piece] + "\uFE0E";
-                const pieceLabel = `${pieceColor} ${pieceNames[piece.toLowerCase()]} on ${position}`;
-
-                if (isCurrentPlayerPiece) {
-                    square.setAttribute("aria-label", pieceLabel);
-                    pieceElement.setAttribute("aria-hidden", "true");
-                } else {
-                    pieceElement.setAttribute("role", "img");
-                    pieceElement.setAttribute("aria-label", pieceLabel);
-                }
+                pieceElement.setAttribute("aria-hidden", "true");
 
                 square.appendChild(pieceElement);
             }
