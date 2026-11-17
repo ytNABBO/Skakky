@@ -8,6 +8,8 @@ let selectedSquare = null;
 let gameResult = null;
 let pendingPromotion = null;
 let enPassant = null;
+let halfmoveClock = 0;
+const drawHalfmoveLimit = 150; // 75 moves by each player.
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -504,9 +506,16 @@ function movePiece(row, column, promotion = null) {
     const { capturedPiece, capturedEnPassant, castledSide } = movePieceOnBoard(
         currentPosition, fromRow, fromColumn, row, column, placedPiece
     );
+    const isPawnMove = piece.toLowerCase() === "p";
+    if (isPawnMove || capturedPiece !== "") {
+        halfmoveClock = 0;
+    } else {
+        halfmoveClock++;
+    }
+
     // Only the most recent move can give the opponent an en passant capture.
     enPassant = null;
-    if (piece.toLowerCase() === "p" && Math.abs(row - fromRow) === 2) {
+    if (isPawnMove && Math.abs(row - fromRow) === 2) {
         enPassant = { pawnRow: row, column, targetRow: (fromRow + row) / 2 };
     }
     if (piece.toLowerCase() === "k") {
@@ -553,6 +562,8 @@ function renderBoard() {
     if (!hasLegalMove(currentPlayer)) {
         const winner = currentPlayer === "white" ? "Black" : "White";
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
+    } else if (halfmoveClock >= drawHalfmoveLimit) {
+        gameResult = "Draw by the 75-move rule.";
     }
 
     clearSelection();

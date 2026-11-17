@@ -15,6 +15,8 @@ function createElement() {
         setAttribute() {},
         appendChild() {},
         replaceChildren() {},
+        focus() {},
+        querySelector() { return null; },
         querySelectorAll() { return []; }
     };
 }
@@ -238,3 +240,51 @@ vm.runInContext('enPassant = null;', context);
 assert.equal(turnMessage('white'), 'Checkmate. Black wins.', 'Without the en passant right there is no response.');
 
 console.log('PASS: en passant for both colors, discovered check and an en passant escape from check.');
+
+function setDrawPosition(pieces, clock) {
+    setPosition(pieces);
+    context.testClock = clock;
+    vm.runInContext('halfmoveClock = testClock;', context);
+    turnMessage('white');
+}
+
+function playMove(from, to, promotion = null) {
+    context.move = { from, row: 8 - Number(to[1]), column: files.indexOf(to[0]), promotion };
+    return vm.runInContext(`
+        selectedSquare = document.createElement('button');
+        selectedSquare.dataset.position = move.from;
+        movePiece(move.row, move.column, move.promotion);
+    `, context);
+}
+
+setDrawPosition({ a1: 'K', b2: 'R', h8: 'k', g7: 'r' }, 148);
+assert.equal(playMove('a1', 'c3'), false, 'An illegal move cannot count toward a draw.');
+assert.equal(vm.runInContext('halfmoveClock', context), 148);
+assert.equal(playMove('b2', 'b3'), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Black to move', '149 quiet half-moves are not enough.');
+assert.equal(playMove('g7', 'g6'), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Draw by the 75-move rule.');
+assert.equal(playMove('b3', 'b4'), false, 'The board must stop accepting moves after the draw.');
+
+for (const [pieces, from, to, promotion] of [
+    [{ a1: 'K', b2: 'P', h8: 'k' }, 'b2', 'b4', null],
+    [{ a1: 'K', b2: 'R', b5: 'n', h8: 'k', g7: 'r' }, 'b2', 'b5', null],
+    [{ a1: 'K', b7: 'P', h6: 'k' }, 'b7', 'b8', 'n']
+]) {
+    setDrawPosition(pieces, 149);
+    assert.equal(playMove(from, to, promotion), true);
+    assert.equal(vm.runInContext('halfmoveClock', context), 0, 'A pawn move, promotion or capture resets the clock.');
+    assert.equal(vm.runInContext('turn.textContent', context), 'Black to move');
+}
+
+vm.runInContext('castlingRights.white.kingside = true;', context);
+setDrawPosition({ e1: 'K', h1: 'R', e8: 'k' }, 148);
+assert.equal(playMove('e1', 'g1'), true);
+assert.equal(vm.runInContext('halfmoveClock', context), 149, 'Castling counts as one quiet move.');
+
+setDrawPosition({ c6: 'K', d7: 'Q', a8: 'k' }, 149);
+assert.equal(playMove('d7', 'b7'), true);
+assert.equal(vm.runInContext('halfmoveClock', context), 150);
+assert.equal(vm.runInContext('turn.textContent', context), 'Checkmate. White wins.', 'Checkmate takes precedence over the draw.');
+
+console.log('PASS: 75-move threshold, legal moves only, resets, castling and checkmate precedence.');
