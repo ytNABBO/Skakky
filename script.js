@@ -31,6 +31,25 @@ const pieceNames = {
 
 const files = "abcdefgh";
 
+function getWhitePawnAdvances(row, column) {
+    const advances = [];
+    const nextRow = row - 1;
+
+    if (nextRow < 0 || startingPosition[nextRow][column] !== "") {
+        return advances;
+    }
+
+    const nextRank = 8 - nextRow;
+    advances.push(`${files[column]}${nextRank}`);
+
+    // A pawn can advance two squares from rank 2 only if both are empty.
+    if (row === 6 && startingPosition[row - 2][column] === "") {
+        advances.push(`${files[column]}${nextRank + 1}`);
+    }
+
+    return advances;
+}
+
 function clearSelection() {
     if (selectedSquare !== null) {
         selectedSquare.classList.remove("selected");
@@ -38,10 +57,14 @@ function clearSelection() {
         selectedSquare = null;
     }
 
+    for (const square of board.querySelectorAll(".pawn-advance")) {
+        square.classList.remove("pawn-advance");
+    }
+
     status.textContent = initialStatus;
 }
 
-function selectPiece(square, piece) {
+function selectPiece(square, piece, row, column) {
     const wasSelected = selectedSquare === square;
     clearSelection();
 
@@ -52,7 +75,23 @@ function selectPiece(square, piece) {
     selectedSquare = square;
     square.classList.add("selected");
     square.setAttribute("aria-pressed", "true");
-    status.textContent = `Selected white ${pieceNames[piece.toLowerCase()]} on ${square.dataset.position}. Movement is not available yet.`;
+
+    let message = `Selected white ${pieceNames[piece.toLowerCase()]} on ${square.dataset.position}.`;
+
+    if (piece === "P") {
+        const advances = getWhitePawnAdvances(row, column);
+
+        for (const position of advances) {
+            const destination = board.querySelector(`[data-position="${position}"]`);
+            destination.classList.add("pawn-advance");
+        }
+
+        message += advances.length > 0
+            ? ` Forward preview: ${advances.join(", ")}.`
+            : " No forward squares available.";
+    }
+
+    status.textContent = `${message} Movement is not available yet.`;
 }
 
 function renderBoard() {
@@ -69,7 +108,7 @@ function renderBoard() {
             if (isWhitePiece) {
                 square.type = "button";
                 square.setAttribute("aria-pressed", "false");
-                square.addEventListener("click", () => selectPiece(square, piece));
+                square.addEventListener("click", () => selectPiece(square, piece, row, column));
             }
 
             const color = (row + column) % 2 === 0 ? "light" : "dark";

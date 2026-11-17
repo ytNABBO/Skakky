@@ -103,6 +103,15 @@ button.square:focus-visible {
     box-shadow: inset 0 0 0 4px #17683e;
 }
 
+.square.pawn-advance::after {
+    content: "";
+    width: 25%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background-color: #123f64;
+    pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .square {
         transition: none;
