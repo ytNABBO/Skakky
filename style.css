@@ -16,6 +16,7 @@ body {
 }
 
 .square {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -44,4 +45,22 @@ body {
 
 .piece.black {
     color: #111;
+}
+
+.coordinate {
+    position: absolute;
+    color: #30251b;
+    font-size: clamp(8px, 2vw, 11px);
+    font-weight: bold;
+    line-height: 1;
+}
+
+.coordinate.rank {
+    top: 3px;
+    left: 3px;
+}
+
+.coordinate.file {
+    right: 3px;
+    bottom: 3px;
 }
