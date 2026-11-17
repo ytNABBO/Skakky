@@ -213,3 +213,28 @@ vm.runInContext('castlingRights.white.kingside = false;', context);
 assert.deepEqual(castlingDestinations('e1'), ['c1'], 'A rook returning to its original square cannot restore lost castling rights.');
 
 console.log('PASS: castling for both colors, path clearance, attacked squares, missing rooks and lost rights.');
+
+setPosition({ a1: 'K', a8: 'k', e5: 'P', d5: 'p' });
+assert(!legalOptions('e5').captures.includes('d6'), 'An adjacent pawn alone does not allow en passant.');
+vm.runInContext('enPassant = { pawnRow: 3, column: 3, targetRow: 2 };', context);
+assert.deepEqual(Array.from(legalOptions('e5').captures), ['d6'], 'White can capture a pawn that just advanced two squares.');
+assert.equal(vm.runInContext('JSON.stringify(currentPosition)', context), JSON.stringify(context.fixture),
+    'Calculating en passant must leave both pawns in place.');
+
+setPosition({ a1: 'K', a8: 'k', e4: 'p', d4: 'P' });
+vm.runInContext('enPassant = { pawnRow: 4, column: 3, targetRow: 5 };', context);
+assert.deepEqual(Array.from(legalOptions('e4').captures), ['d3'], 'Black can capture en passant in the opposite direction.');
+
+setPosition({ h5: 'K', g5: 'P', a8: 'k', a5: 'r', f5: 'p' });
+vm.runInContext('enPassant = { pawnRow: 3, column: 5, targetRow: 2 };', context);
+assert(vm.runInContext('getMoveOptions(3, 6).captures.includes("f6")', context));
+assert(!legalOptions('g5').captures.includes('f6'), 'Removing both pawns would expose the king to the rook.');
+
+setPosition({ e4: 'K', e5: 'P', f4: 'P', a8: 'k', c5: 'q', g4: 'q', b4: 'n', d5: 'p' });
+vm.runInContext('enPassant = { pawnRow: 3, column: 3, targetRow: 2 };', context);
+assert.deepEqual(Array.from(legalOptions('e5').captures), ['d6'], 'Removing the checking pawn can resolve check.');
+assert.equal(turnMessage('white'), 'White to move (in check)', 'An en passant escape can prevent checkmate.');
+vm.runInContext('enPassant = null;', context);
+assert.equal(turnMessage('white'), 'Checkmate. Black wins.', 'Without the en passant right there is no response.');
+
+console.log('PASS: en passant for both colors, discovered check and an en passant escape from check.');

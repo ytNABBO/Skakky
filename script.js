@@ -7,6 +7,7 @@ let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
 let pendingPromotion = null;
+let enPassant = null;
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -97,6 +98,18 @@ function getPawnAdvances(row, column) {
     return advances;
 }
 
+function isEnPassantCapture(position, fromRow, fromColumn, toRow, toColumn) {
+    if (enPassant === null || enPassant.pawnRow !== fromRow || enPassant.targetRow !== toRow
+        || enPassant.column !== toColumn || Math.abs(fromColumn - toColumn) !== 1) {
+        return false;
+    }
+
+    const pawn = position[fromRow][fromColumn];
+    const adjacentPawn = position[fromRow][toColumn];
+    return position[toRow][toColumn] === ""
+        && ((pawn === "P" && adjacentPawn === "p") || (pawn === "p" && adjacentPawn === "P"));
+}
+
 function getPawnCaptures(row, column) {
     const captures = [];
     const pawn = currentPosition[row][column];
@@ -118,8 +131,9 @@ function getPawnCaptures(row, column) {
 
         const target = currentPosition[nextRow][targetColumn];
         // Kings are never captured.
-        if (target !== "" && target.toLowerCase() !== "k"
-            && getPieceColor(target) !== getPieceColor(pawn)) {
+        const capturesPiece = target !== "" && target.toLowerCase() !== "k"
+            && getPieceColor(target) !== getPieceColor(pawn);
+        if (capturesPiece || isEnPassantCapture(currentPosition, row, column, nextRow, targetColumn)) {
             captures.push(`${files[targetColumn]}${8 - nextRow}`);
         }
     }
@@ -305,18 +319,25 @@ function getCastlingMoves(row, column, player) {
 }
 
 function movePieceOnBoard(position, fromRow, fromColumn, toRow, toColumn, piece) {
+    const capturedEnPassant = isEnPassantCapture(position, fromRow, fromColumn, toRow, toColumn);
+    const capturedPiece = position[capturedEnPassant ? fromRow : toRow][toColumn];
+    if (capturedEnPassant) {
+        position[fromRow][toColumn] = "";
+    }
+
     position[fromRow][fromColumn] = "";
     position[toRow][toColumn] = piece;
 
+    let castledSide = null;
     if (piece.toLowerCase() === "k" && fromRow === toRow && fromColumn === 4) {
         const side = castlingSides.find(option => option.kingColumn === toColumn);
         if (side !== undefined) {
             position[toRow][side.rookTarget] = position[toRow][side.rookColumn];
             position[toRow][side.rookColumn] = "";
-            return side.name;
+            castledSide = side.name;
         }
     }
-    return null;
+    return { capturedPiece, capturedEnPassant, castledSide };
 }
 
 function getLegalMoveOptions(row, column) {
@@ -327,7 +348,7 @@ function getLegalMoveOptions(row, column) {
         moves.push(...getCastlingMoves(row, column, player));
     }
 
-    // Try each destination on a copy, including the rook's move when castling.
+    // Try each destination on a copy, including all squares changed by a special move.
     function keepsKingSafe(destination) {
         const targetRow = 8 - Number(destination[1]);
         const targetColumn = files.indexOf(destination[0]);
@@ -424,7 +445,10 @@ function selectPiece(square, piece, row, column) {
         const destination = board.querySelector(`[data-position="${position}"]`);
         destination.classList.add("capture-target");
         destination.disabled = false;
-        destination.setAttribute("aria-label", `Capture ${getSquareLabel(destination.dataset.piece, position)} with ${currentPlayer} ${pieceName} from ${square.dataset.position}`);
+        const label = destination.dataset.piece === ""
+            ? `Capture en passant with ${currentPlayer} pawn from ${square.dataset.position} to ${position}`
+            : `Capture ${getSquareLabel(destination.dataset.piece, position)} with ${currentPlayer} ${pieceName} from ${square.dataset.position}`;
+        destination.setAttribute("aria-label", label);
     }
 
     if (moves.length > 0) {
@@ -473,12 +497,18 @@ function movePiece(row, column, promotion = null) {
         return false;
     }
 
-    const capturedPiece = currentPosition[row][column];
     let placedPiece = piece;
     if (promotion !== null) {
         placedPiece = currentPlayer === "white" ? promotion.toUpperCase() : promotion;
     }
-    const castledSide = movePieceOnBoard(currentPosition, fromRow, fromColumn, row, column, placedPiece);
+    const { capturedPiece, capturedEnPassant, castledSide } = movePieceOnBoard(
+        currentPosition, fromRow, fromColumn, row, column, placedPiece
+    );
+    // Only the most recent move can give the opponent an en passant capture.
+    enPassant = null;
+    if (piece.toLowerCase() === "p" && Math.abs(row - fromRow) === 2) {
+        enPassant = { pawnRow: row, column, targetRow: (fromRow + row) / 2 };
+    }
     if (piece.toLowerCase() === "k") {
         castlingRights[currentPlayer].kingside = false;
         castlingRights[currentPlayer].queenside = false;
@@ -493,9 +523,12 @@ function movePiece(row, column, promotion = null) {
     const nextPiece = board.querySelector(`button.square:enabled[data-piece="${nextPawn}"]`)
         || board.querySelector("button.square:enabled");
 
-    let result = capturedPiece === ""
-        ? `moved from ${fromPosition} to ${toPosition}`
-        : `from ${fromPosition} captured a ${getPieceColor(capturedPiece)} ${pieceNames[capturedPiece.toLowerCase()]} on ${toPosition}`;
+    let result = `moved from ${fromPosition} to ${toPosition}`;
+    if (capturedEnPassant) {
+        result = `captured en passant from ${fromPosition} to ${toPosition}`;
+    } else if (capturedPiece !== "") {
+        result = `from ${fromPosition} captured a ${getPieceColor(capturedPiece)} ${pieceNames[capturedPiece.toLowerCase()]} on ${toPosition}`;
+    }
     if (promotion !== null) {
         result += ` and promoted to a ${pieceNames[promotion]}`;
     }
