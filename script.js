@@ -1,4 +1,7 @@
 const board = document.getElementById("board");
+const status = document.getElementById("status");
+const initialStatus = "Select a white piece. Movement is not available yet.";
+let selectedSquare = null;
 
 // Uppercase letters represent White; lowercase letters represent Black.
 const startingPosition = [
@@ -28,13 +31,46 @@ const pieceNames = {
 
 const files = "abcdefgh";
 
+function clearSelection() {
+    if (selectedSquare !== null) {
+        selectedSquare.classList.remove("selected");
+        selectedSquare.setAttribute("aria-pressed", "false");
+        selectedSquare = null;
+    }
+
+    status.textContent = initialStatus;
+}
+
+function selectPiece(square, piece) {
+    const wasSelected = selectedSquare === square;
+    clearSelection();
+
+    if (wasSelected) {
+        return;
+    }
+
+    selectedSquare = square;
+    square.classList.add("selected");
+    square.setAttribute("aria-pressed", "true");
+    status.textContent = `Selected white ${pieceNames[piece.toLowerCase()]} on ${square.dataset.position}. Movement is not available yet.`;
+}
+
 function renderBoard() {
+    clearSelection();
     board.replaceChildren();
 
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
-            const square = document.createElement("div");
+            const piece = startingPosition[row][column];
+            const isWhitePiece = piece !== "" && piece === piece.toUpperCase();
+            const square = document.createElement(isWhitePiece ? "button" : "div");
             square.classList.add("square");
+
+            if (isWhitePiece) {
+                square.type = "button";
+                square.setAttribute("aria-pressed", "false");
+                square.addEventListener("click", () => selectPiece(square, piece));
+            }
 
             const color = (row + column) % 2 === 0 ? "light" : "dark";
             square.classList.add(color);
@@ -61,8 +97,6 @@ function renderBoard() {
                 square.appendChild(fileLabel);
             }
 
-            const piece = startingPosition[row][column];
-
             if (piece !== "") {
                 const pieceElement = document.createElement("span");
                 const pieceColor = piece === piece.toUpperCase() ? "white" : "black";
@@ -70,8 +104,15 @@ function renderBoard() {
                 pieceElement.classList.add("piece", pieceColor);
                 // Request text glyphs instead of emoji for consistent piece styling.
                 pieceElement.textContent = pieceSymbols[piece] + "\uFE0E";
-                pieceElement.setAttribute("role", "img");
-                pieceElement.setAttribute("aria-label", `${pieceColor} ${pieceNames[piece.toLowerCase()]} on ${position}`);
+                const pieceLabel = `${pieceColor} ${pieceNames[piece.toLowerCase()]} on ${position}`;
+
+                if (isWhitePiece) {
+                    square.setAttribute("aria-label", pieceLabel);
+                    pieceElement.setAttribute("aria-hidden", "true");
+                } else {
+                    pieceElement.setAttribute("role", "img");
+                    pieceElement.setAttribute("aria-label", pieceLabel);
+                }
 
                 square.appendChild(pieceElement);
             }
@@ -81,6 +122,10 @@ function renderBoard() {
     }
 }
 
-renderBoard();
+board.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        clearSelection();
+    }
+});
 
-document.getElementById("status").textContent = "Starting position ready. Piece movement is not available yet.";
+renderBoard();
