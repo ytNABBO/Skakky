@@ -25,6 +25,8 @@ const context = vm.createContext({
     document: { getElementById: createElement, createElement }
 });
 vm.runInContext(source, context);
+assert.equal(vm.runInContext('positionOccurrences.get(getPositionKey())', context), 1,
+    'The standard starting position counts as the first occurrence.');
 const files = 'abcdefgh';
 
 // Inspect every possible destination independently of the production ray/offset generators.
@@ -288,3 +290,46 @@ assert.equal(vm.runInContext('halfmoveClock', context), 150);
 assert.equal(vm.runInContext('turn.textContent', context), 'Checkmate. White wins.', 'Checkmate takes precedence over the draw.');
 
 console.log('PASS: 75-move threshold, legal moves only, resets, castling and checkmate precedence.');
+
+function positionKey() {
+    return vm.runInContext('getPositionKey()', context);
+}
+
+setDrawPosition({ e1: 'K', f1: 'B', h1: 'R', e8: 'k' }, 0);
+vm.runInContext('castlingRights.white.kingside = true;', context);
+const originalKey = positionKey();
+vm.runInContext('currentPlayer = "black";', context);
+assert.notEqual(positionKey(), originalKey, 'A different side to move changes the position.');
+vm.runInContext('currentPlayer = "white"; halfmoveClock = 4;', context);
+assert.equal(positionKey(), originalKey, 'The half-move count does not change position identity.');
+vm.runInContext('castlingRights.white.kingside = false;', context);
+assert.notEqual(positionKey(), originalKey, 'Losing castling rights changes the position even when the path is blocked.');
+
+setPosition({ a1: 'K', a8: 'k', e5: 'P', d5: 'p' });
+const withoutEnPassant = positionKey();
+vm.runInContext('enPassant = { pawnRow: 3, column: 3, targetRow: 2 };', context);
+assert.notEqual(positionKey(), withoutEnPassant, 'A legal en passant capture changes the position.');
+
+setPosition({ h5: 'K', g5: 'P', a8: 'k', a5: 'r', f5: 'p' });
+vm.runInContext('enPassant = null;', context);
+const pinnedPosition = positionKey();
+vm.runInContext('enPassant = { pawnRow: 3, column: 5, targetRow: 2 };', context);
+assert.equal(positionKey(), pinnedPosition, 'An en passant capture that exposes the king does not change the position.');
+
+vm.runInContext('enPassant = null; positionOccurrences.clear();', context);
+setDrawPosition({ e1: 'K', g1: 'N', e8: 'k', g8: 'n' }, 0);
+vm.runInContext('recordCurrentPosition(); renderBoard(); renderBoard();', context);
+assert.equal(vm.runInContext('positionOccurrences.get(getPositionKey())', context), 1,
+    'Redrawing the same position must not count as a repeat.');
+
+for (let cycle = 1; cycle <= 4; cycle++) {
+    for (const [from, to] of [['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']]) {
+        assert.equal(playMove(from, to), true);
+    }
+    assert.equal(vm.runInContext('positionOccurrences.get(getPositionKey())', context), cycle + 1);
+    assert.equal(vm.runInContext('turn.textContent', context),
+        cycle === 4 ? 'Draw by fivefold repetition.' : 'White to move');
+}
+assert.equal(playMove('g1', 'f3'), false, 'The game must stop accepting moves after fivefold repetition.');
+
+console.log('PASS: fivefold repetition, position identity, first occurrence and redraws.');

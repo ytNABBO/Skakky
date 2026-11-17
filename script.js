@@ -10,6 +10,8 @@ let pendingPromotion = null;
 let enPassant = null;
 let halfmoveClock = 0;
 const drawHalfmoveLimit = 150; // 75 moves by each player.
+const drawRepetitionLimit = 5;
+const positionOccurrences = new Map();
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -392,6 +394,32 @@ function hasLegalMove(player) {
     return false;
 }
 
+function getPositionKey() {
+    let enPassantSquare = "";
+    if (enPassant !== null) {
+        const { pawnRow, column, targetRow } = enPassant;
+        const destination = `${files[column]}${8 - targetRow}`;
+        const activePawn = currentPlayer === "white" ? "P" : "p";
+
+        // A double step changes the key only if it gives the next player a legal capture.
+        const canCapture = [column - 1, column + 1].some(adjacentColumn =>
+            currentPosition[pawnRow][adjacentColumn] === activePawn
+            && getLegalMoveOptions(pawnRow, adjacentColumn).captures.includes(destination)
+        );
+        if (canCapture) {
+            enPassantSquare = destination;
+        }
+    }
+
+    return JSON.stringify([currentPosition, currentPlayer, castlingRights, enPassantSquare]);
+}
+
+function recordCurrentPosition() {
+    const key = getPositionKey();
+    const occurrences = positionOccurrences.get(key) ?? 0;
+    positionOccurrences.set(key, occurrences + 1);
+}
+
 // Select a piece, show its destinations, and apply the chosen move.
 function clearSelection() {
     if (selectedSquare !== null) {
@@ -526,6 +554,7 @@ function movePiece(row, column, promotion = null) {
     revokeRookCastlingRight(capturedPiece, row, column);
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
     currentPlayer = currentPlayer === "white" ? "black" : "white";
+    recordCurrentPosition();
     renderBoard();
 
     const nextPawn = currentPlayer === "white" ? "P" : "p";
@@ -564,6 +593,8 @@ function renderBoard() {
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
     } else if (halfmoveClock >= drawHalfmoveLimit) {
         gameResult = "Draw by the 75-move rule.";
+    } else if ((positionOccurrences.get(getPositionKey()) ?? 0) >= drawRepetitionLimit) {
+        gameResult = "Draw by fivefold repetition.";
     }
 
     clearSelection();
@@ -655,4 +686,5 @@ promotionDialog.addEventListener("close", () => {
     }
 });
 
+recordCurrentPosition();
 renderBoard();

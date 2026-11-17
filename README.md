@@ -13,10 +13,8 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Pawn promotion to a queen, rook, bishop or knight for either color.
 - Kingside and queenside castling for either color.
 - En passant captures for either color.
-- Automatic draws under the 75-move rule.
+- Automatic draws under the 75-move rule and fivefold repetition.
 - Alternating turns and keyboard-accessible move selection.
-
-Other draw conditions are still to come.
 
 ## How it works
 
@@ -31,7 +29,8 @@ To capture en passant, move your adjacent pawn diagonally onto the square the op
 Blue dots mark moves without captures. Red rings mark capture targets, including the empty destination for en passant.
 During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
 If the player to move has no legal moves, the game ends. Checkmate gives the win to the opponent. Stalemate is a draw because the king is safe but the player cannot move.
-The game also ends in a draw after 75 moves by each player without a pawn move or capture. Checkmate on the final move takes precedence. See [FIDE Laws of Chess, article 9.6.2](https://handbook.fide.com/chapter/e012023).
+The game ends in a draw when the same position occurs five times, including the starting position if it repeats. To match, the pieces, side to move, castling rights and any legal en passant capture must agree.
+The game also ends in a draw after 75 moves by each player without a pawn move or capture. Checkmate on the final move takes precedence. See [FIDE Laws of Chess, article 9.6](https://handbook.fide.com/chapter/e012023).
 Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
 Press Escape to cancel the selection. Reload the page to restore the starting position.
 
@@ -55,3 +54,10 @@ The test compares all six piece types, both colors and every starting square aga
 - `style.css` styles the board and controls.
 - `script.js` stores the position, finds available moves, handles player input and redraws the board.
 - `tests/movement.cjs` checks move generation, king safety and game results.
+
+## Roadmap
+
+- Draw claims for threefold repetition and the 50-move rule, including claims based on an intended move.
+- Automatic draws in dead positions where neither player can give checkmate by any legal sequence.
+- Resignation and draw offers.
+- Optional chess clocks and results when a player runs out of time.
