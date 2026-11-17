@@ -8,10 +8,10 @@ A chessboard built with HTML, CSS and JavaScript.
 
 - Responsive 8×8 board with coordinates and Unicode chess pieces.
 - Alternating turns, starting with White.
-- Pawns, knights and rooks can move and capture opposing pieces.
+- Pawns, knights, rooks and bishops can move and capture opposing pieces.
 - Keyboard-accessible controls and move indicators.
 
-Bishops, queens, kings, check, promotion and en passant are not implemented yet.
+Queens, kings, check, promotion and en passant are not implemented yet.
 
 ## Run locally
 

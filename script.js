@@ -136,10 +136,9 @@ function getKnightMoves(row, column) {
     return options;
 }
 
-function getRookMoves(row, column) {
+function getSlidingMoves(row, column, directions) {
     const options = { moves: [], captures: [] };
-    const rook = currentPosition[row][column];
-    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const piece = currentPosition[row][column];
 
     for (const [rowOffset, columnOffset] of directions) {
         let nextRow = row + rowOffset;
@@ -152,7 +151,7 @@ function getRookMoves(row, column) {
             if (target === "") {
                 options.moves.push(position);
             } else {
-                if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(rook)) {
+                if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(piece)) {
                     options.captures.push(position);
                 }
                 break;
@@ -166,6 +165,14 @@ function getRookMoves(row, column) {
     return options;
 }
 
+function getRookMoves(row, column) {
+    return getSlidingMoves(row, column, [[-1, 0], [1, 0], [0, -1], [0, 1]]);
+}
+
+function getBishopMoves(row, column) {
+    return getSlidingMoves(row, column, [[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+}
+
 function getMoveOptions(row, column) {
     const piece = currentPosition[row][column].toLowerCase();
     if (piece === "p") {
@@ -176,6 +183,9 @@ function getMoveOptions(row, column) {
     }
     if (piece === "r") {
         return getRookMoves(row, column);
+    }
+    if (piece === "b") {
+        return getBishopMoves(row, column);
     }
     return { moves: [], captures: [] };
 }
@@ -193,7 +203,7 @@ function clearSelection() {
         square.setAttribute("aria-label", getSquareLabel(square.dataset.piece, square.dataset.position));
     }
 
-    status.textContent = `Select a ${currentPlayer} pawn, knight or rook, then choose a marked square.`;
+    status.textContent = `Select a ${currentPlayer} pawn, knight, rook or bishop, then choose a marked square.`;
 }
 
 function selectPiece(square, piece, row, column) {
@@ -215,7 +225,7 @@ function selectPiece(square, piece, row, column) {
     const pieceName = pieceNames[piece.toLowerCase()];
     let message = `Selected ${currentPlayer} ${pieceName} on ${square.dataset.position}.`;
 
-    if (["p", "n", "r"].includes(piece.toLowerCase())) {
+    if (["p", "n", "r", "b"].includes(piece.toLowerCase())) {
         const { moves, captures } = getMoveOptions(row, column);
 
         for (const position of moves) {
