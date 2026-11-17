@@ -1,24 +1,27 @@
 # Skakky
 
-A chessboard built with HTML, CSS and JavaScript.
+Skakky is an interactive chess project built with HTML, CSS and JavaScript. The goal is to create a complete browser chess game. The current version shows the standard starting position and supports basic moves, captures and alternating turns.
 
 ![Chessboard in the standard starting position](docs/preview.png)
 
-## Features
+## Current features
 
-- Responsive 8×8 board with coordinates and Unicode chess pieces.
-- Alternating turns, starting with White.
-- All pieces can move and capture opposing pieces.
-- Keyboard-accessible controls and move indicators.
+- Responsive 8×8 board with coordinates and Unicode pieces.
+- Basic move and capture generation for all six piece types.
+- Alternating turns and keyboard-accessible move selection.
 
-The king moves one square in any direction, but moves into check are not prevented. Check validation, castling, promotion and en passant are not implemented yet.
+Moves into check are not prevented. Check validation, castling, promotion and en passant are not implemented yet.
+
+## How it works
+
+Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
 
 ## Run locally
 
 Open `index.html` in a browser. No installation or build step is required.
 
-## Files
+## Project files
 
-- `index.html` — page structure.
-- `style.css` — board layout and styles.
-- `script.js` — board rendering and chess interactions.
+- `index.html` contains the page structure.
+- `style.css` styles the board and controls.
+- `script.js` stores the position, finds available moves, handles player input and redraws the board.

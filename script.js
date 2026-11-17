@@ -1,10 +1,11 @@
+// Show piece moves, update the board, and alternate turns.
 const board = document.getElementById("board");
 const status = document.getElementById("status");
 const turn = document.getElementById("turn");
 let currentPlayer = "white";
 let selectedSquare = null;
 
-// Uppercase letters represent White; lowercase letters represent Black.
+// The board uses uppercase letters for White and lowercase letters for Black.
 const startingPosition = [
     ["r", "n", "b", "q", "k", "b", "n", "r"],
     ["p", "p", "p", "p", "p", "p", "p", "p"],
@@ -35,6 +36,7 @@ const pieceNames = {
 
 const files = "abcdefgh";
 
+// Convert piece codes into colors and accessible square labels.
 function getPieceColor(piece) {
     return piece === piece.toUpperCase() ? "white" : "black";
 }
@@ -45,6 +47,7 @@ function getSquareLabel(piece, position) {
         : `${getPieceColor(piece)} ${pieceNames[piece.toLowerCase()]} on ${position}`;
 }
 
+// Find each piece's possible moves and captures.
 function getPawnAdvances(row, column) {
     const advances = [];
     const pawn = currentPosition[row][column];
@@ -103,19 +106,10 @@ function getPawnCaptures(row, column) {
     return captures;
 }
 
-function getKnightMoves(row, column) {
+// Knights and kings move to a fixed set of offset squares.
+function getMovesForOffsets(row, column, offsets) {
     const options = { moves: [], captures: [] };
-    const knight = currentPosition[row][column];
-
-    if (knight.toLowerCase() !== "n") {
-        return options;
-    }
-
-    // A knight jumps two squares on one axis and one on the other.
-    const offsets = [
-        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-        [1, -2], [1, 2], [2, -1], [2, 1]
-    ];
+    const piece = currentPosition[row][column];
 
     for (const [rowOffset, columnOffset] of offsets) {
         const targetRow = row + rowOffset;
@@ -128,12 +122,20 @@ function getKnightMoves(row, column) {
         const position = `${files[targetColumn]}${8 - targetRow}`;
         if (target === "") {
             options.moves.push(position);
-        } else if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(knight)) {
+        } else if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(piece)) {
             options.captures.push(position);
         }
     }
 
     return options;
+}
+
+function getKnightMoves(row, column) {
+    const offsets = [
+        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+        [1, -2], [1, 2], [2, -1], [2, 1]
+    ];
+    return getMovesForOffsets(row, column, offsets);
 }
 
 function getSlidingMoves(row, column, directions) {
@@ -182,33 +184,12 @@ function getQueenMoves(row, column) {
 }
 
 function getKingMoves(row, column) {
-    const options = { moves: [], captures: [] };
-    const king = currentPosition[row][column];
-
-    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
-        for (let columnOffset = -1; columnOffset <= 1; columnOffset++) {
-            if (rowOffset === 0 && columnOffset === 0) {
-                continue;
-            }
-
-            const nextRow = row + rowOffset;
-            const nextColumn = column + columnOffset;
-            if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) {
-                continue;
-            }
-
-            const target = currentPosition[nextRow][nextColumn];
-            const position = `${files[nextColumn]}${8 - nextRow}`;
-
-            if (target === "") {
-                options.moves.push(position);
-            } else if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(king)) {
-                options.captures.push(position);
-            }
-        }
-    }
-
-    return options;
+    const offsets = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1], [0, 1],
+        [1, -1], [1, 0], [1, 1]
+    ];
+    return getMovesForOffsets(row, column, offsets);
 }
 
 function getMoveOptions(row, column) {
@@ -234,6 +215,7 @@ function getMoveOptions(row, column) {
     return { moves: [], captures: [] };
 }
 
+// Select a piece, show its destinations, and apply the chosen move.
 function clearSelection() {
     if (selectedSquare !== null) {
         selectedSquare.classList.remove("selected");
@@ -269,35 +251,31 @@ function selectPiece(square, piece, row, column) {
     const pieceName = pieceNames[piece.toLowerCase()];
     let message = `Selected ${currentPlayer} ${pieceName} on ${square.dataset.position}.`;
 
-    if (["p", "n", "r", "b", "q", "k"].includes(piece.toLowerCase())) {
-        const { moves, captures } = getMoveOptions(row, column);
+    const { moves, captures } = getMoveOptions(row, column);
 
-        for (const position of moves) {
-            const destination = board.querySelector(`[data-position="${position}"]`);
-            destination.classList.add("move-target");
-            destination.disabled = false;
-            destination.setAttribute("aria-label", `Move ${currentPlayer} ${pieceName} from ${square.dataset.position} to ${position}`);
-        }
-
-        for (const position of captures) {
-            const destination = board.querySelector(`[data-position="${position}"]`);
-            destination.classList.add("capture-target");
-            destination.disabled = false;
-            destination.setAttribute("aria-label", `Capture ${getSquareLabel(destination.dataset.piece, position)} with ${currentPlayer} ${pieceName} from ${square.dataset.position}`);
-        }
-
-        if (moves.length > 0) {
-            message += ` Moves: ${moves.join(", ")}.`;
-        }
-        if (captures.length > 0) {
-            message += ` Captures: ${captures.join(", ")}.`;
-        }
-        message += moves.length > 0 || captures.length > 0
-            ? " Choose a marked square."
-            : " No destinations available.";
-    } else {
-        message += " Movement for this piece is not available yet.";
+    for (const position of moves) {
+        const destination = board.querySelector(`[data-position="${position}"]`);
+        destination.classList.add("move-target");
+        destination.disabled = false;
+        destination.setAttribute("aria-label", `Move ${currentPlayer} ${pieceName} from ${square.dataset.position} to ${position}`);
     }
+
+    for (const position of captures) {
+        const destination = board.querySelector(`[data-position="${position}"]`);
+        destination.classList.add("capture-target");
+        destination.disabled = false;
+        destination.setAttribute("aria-label", `Capture ${getSquareLabel(destination.dataset.piece, position)} with ${currentPlayer} ${pieceName} from ${square.dataset.position}`);
+    }
+
+    if (moves.length > 0) {
+        message += ` Moves: ${moves.join(", ")}.`;
+    }
+    if (captures.length > 0) {
+        message += ` Captures: ${captures.join(", ")}.`;
+    }
+    message += moves.length > 0 || captures.length > 0
+        ? " Choose a marked square."
+        : " No destinations available.";
 
     status.textContent = message;
 }
@@ -343,6 +321,7 @@ function movePiece(row, column) {
     return true;
 }
 
+// Rebuild all 64 squares from the current position.
 function renderBoard() {
     clearSelection();
     board.replaceChildren();
