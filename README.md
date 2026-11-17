@@ -10,13 +10,16 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Basic move and capture generation for all six piece types.
 - Check detection and move validation that keeps the moving player's king safe.
 - Checkmate and stalemate detection with a result that ends the game.
+- Pawn promotion to a queen, rook, bishop or knight for either color.
 - Alternating turns and keyboard-accessible move selection.
 
-Castling, promotion, en passant and other draw conditions are still to come.
+Castling, en passant and other draw conditions are still to come.
 
 ## How it works
 
 Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
+
+When you select a destination on the last rank for a pawn, choose the piece to promote it to. Cancel or press Escape to return to the board and choose a move again.
 
 Blue dots mark empty destinations; red rings mark capture targets.
 During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.

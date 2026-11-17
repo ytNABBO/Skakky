@@ -33,6 +33,37 @@ body {
     color: #fff;
 }
 
+#promotion {
+    box-sizing: border-box;
+    max-width: calc(100% - 24px);
+    padding: 20px;
+    border: 2px solid #b58863;
+    border-radius: 6px;
+    background-color: #f0d9b5;
+    color: #202020;
+}
+
+#promotion::backdrop {
+    background-color: rgb(0 0 0 / 65%);
+}
+
+#promotion h2 {
+    margin: 0 0 16px;
+}
+
+#promotion form {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+#promotion button {
+    padding: 8px 12px;
+    font: inherit;
+    cursor: pointer;
+}
+
 .square {
     position: relative;
     display: flex;

@@ -2,9 +2,12 @@
 const board = document.getElementById("board");
 const status = document.getElementById("status");
 const turn = document.getElementById("turn");
+const promotionDialog = document.getElementById("promotion");
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
+let pendingPromotion = null;
+const promotionChoices = ["q", "r", "b", "n"];
 
 // The board uses uppercase letters for White and lowercase letters for Black.
 const startingPosition = [
@@ -321,7 +324,11 @@ function clearSelection() {
 }
 
 function selectPiece(square, piece, row, column) {
-    if (gameResult !== null || piece === "" || getPieceColor(piece) !== currentPlayer || currentPosition[row][column] !== piece) {
+    if (gameResult !== null || pendingPromotion !== null) {
+        return;
+    }
+
+    if (piece === "" || getPieceColor(piece) !== currentPlayer || currentPosition[row][column] !== piece) {
         return;
     }
 
@@ -368,8 +375,8 @@ function selectPiece(square, piece, row, column) {
     status.textContent = message;
 }
 
-function movePiece(row, column) {
-    if (gameResult !== null || selectedSquare === null) {
+function movePiece(row, column, promotion = null) {
+    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null) {
         return false;
     }
 
@@ -388,9 +395,26 @@ function movePiece(row, column) {
         return false;
     }
 
+    const lastRow = currentPlayer === "white" ? 0 : 7;
+    const reachesLastRank = piece.toLowerCase() === "p" && row === lastRow;
+    if (reachesLastRank && promotion === null) {
+        pendingPromotion = { row, column };
+        promotionDialog.returnValue = "";
+        promotionDialog.showModal();
+        return false;
+    }
+
+    if (promotion !== null && (!reachesLastRank || !promotionChoices.includes(promotion))) {
+        return false;
+    }
+
     const capturedPiece = currentPosition[row][column];
+    let placedPiece = piece;
+    if (promotion !== null) {
+        placedPiece = currentPlayer === "white" ? promotion.toUpperCase() : promotion;
+    }
     currentPosition[fromRow][fromColumn] = "";
-    currentPosition[row][column] = piece;
+    currentPosition[row][column] = placedPiece;
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     renderBoard();
@@ -399,9 +423,12 @@ function movePiece(row, column) {
     const nextPiece = board.querySelector(`button.square:enabled[data-piece="${nextPawn}"]`)
         || board.querySelector("button.square:enabled");
 
-    const result = capturedPiece === ""
+    let result = capturedPiece === ""
         ? `moved from ${fromPosition} to ${toPosition}`
         : `from ${fromPosition} captured a ${getPieceColor(capturedPiece)} ${pieceNames[capturedPiece.toLowerCase()]} on ${toPosition}`;
+    if (promotion !== null) {
+        result += ` and promoted to a ${pieceNames[promotion]}`;
+    }
     const nextInstruction = gameResult === null ? `${turn.textContent}.` : "Reload the page to play again.";
     status.textContent = `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}. ${nextInstruction}`;
     if (gameResult !== null) {
@@ -495,10 +522,19 @@ function renderBoard() {
 }
 
 board.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && selectedSquare !== null) {
+    if (event.key === "Escape" && selectedSquare !== null && pendingPromotion === null) {
         const previousSelection = selectedSquare;
         clearSelection();
         previousSelection.focus();
+    }
+});
+
+promotionDialog.addEventListener("close", () => {
+    const target = pendingPromotion;
+    pendingPromotion = null;
+    const promotion = promotionDialog.returnValue;
+    if (target !== null && promotionChoices.includes(promotion)) {
+        movePiece(target.row, target.column, promotion);
     }
 });
 
