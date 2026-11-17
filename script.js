@@ -1,6 +1,7 @@
 const board = document.getElementById("board");
 const status = document.getElementById("status");
-const initialStatus = "Select a white pawn, then choose a blue-dot square to move.";
+const turn = document.getElementById("turn");
+let currentPlayer = "white";
 let selectedSquare = null;
 
 // Uppercase letters represent White; lowercase letters represent Black.
@@ -34,20 +35,33 @@ const pieceNames = {
 
 const files = "abcdefgh";
 
-function getWhitePawnAdvances(row, column) {
-    const advances = [];
-    const nextRow = row - 1;
+function getPieceColor(piece) {
+    return piece === piece.toUpperCase() ? "white" : "black";
+}
 
-    if (nextRow < 0 || currentPosition[nextRow][column] !== "") {
+function getPawnAdvances(row, column) {
+    const advances = [];
+    const pawn = currentPosition[row][column];
+
+    if (pawn !== "P" && pawn !== "p") {
+        return advances;
+    }
+
+    const direction = pawn === "P" ? -1 : 1;
+    const startingRow = pawn === "P" ? 6 : 1;
+    const nextRow = row + direction;
+
+    if (nextRow < 0 || nextRow > 7 || currentPosition[nextRow][column] !== "") {
         return advances;
     }
 
     const nextRank = 8 - nextRow;
     advances.push(`${files[column]}${nextRank}`);
 
-    // A pawn can advance two squares from rank 2 only if both are empty.
-    if (row === 6 && currentPosition[row - 2][column] === "") {
-        advances.push(`${files[column]}${nextRank + 1}`);
+    // A pawn can advance two squares from its starting rank if both are empty.
+    const secondRow = row + 2 * direction;
+    if (row === startingRow && currentPosition[secondRow][column] === "") {
+        advances.push(`${files[column]}${8 - secondRow}`);
     }
 
     return advances;
@@ -66,10 +80,14 @@ function clearSelection() {
         square.setAttribute("aria-label", `Empty square ${square.dataset.position}`);
     }
 
-    status.textContent = initialStatus;
+    status.textContent = `Select a ${currentPlayer} pawn, then choose a blue-dot square to move.`;
 }
 
 function selectPiece(square, piece, row, column) {
+    if (piece === "" || getPieceColor(piece) !== currentPlayer || currentPosition[row][column] !== piece) {
+        return;
+    }
+
     const wasSelected = selectedSquare === square;
     clearSelection();
 
@@ -81,16 +99,16 @@ function selectPiece(square, piece, row, column) {
     square.classList.add("selected");
     square.setAttribute("aria-pressed", "true");
 
-    let message = `Selected white ${pieceNames[piece.toLowerCase()]} on ${square.dataset.position}.`;
+    let message = `Selected ${currentPlayer} ${pieceNames[piece.toLowerCase()]} on ${square.dataset.position}.`;
 
-    if (piece === "P") {
-        const advances = getWhitePawnAdvances(row, column);
+    if (piece.toLowerCase() === "p") {
+        const advances = getPawnAdvances(row, column);
 
         for (const position of advances) {
             const destination = board.querySelector(`[data-position="${position}"]`);
             destination.classList.add("pawn-advance");
             destination.disabled = false;
-            destination.setAttribute("aria-label", `Move white pawn from ${square.dataset.position} to ${position}`);
+            destination.setAttribute("aria-label", `Move ${currentPlayer} pawn from ${square.dataset.position} to ${position}`);
         }
 
         message += advances.length > 0
@@ -103,7 +121,7 @@ function selectPiece(square, piece, row, column) {
     status.textContent = message;
 }
 
-function moveWhitePawn(row, column) {
+function movePawn(row, column) {
     if (selectedSquare === null) {
         return false;
     }
@@ -113,40 +131,50 @@ function moveWhitePawn(row, column) {
     const fromRow = 8 - Number(fromPosition[1]);
     const toPosition = `${files[column]}${8 - row}`;
 
-    if (currentPosition[fromRow][fromColumn] !== "P"
-        || !getWhitePawnAdvances(fromRow, fromColumn).includes(toPosition)) {
+    const pawn = currentPlayer === "white" ? "P" : "p";
+    if (currentPosition[fromRow][fromColumn] !== pawn
+        || !getPawnAdvances(fromRow, fromColumn).includes(toPosition)) {
         return false;
     }
 
     currentPosition[fromRow][fromColumn] = "";
-    currentPosition[row][column] = "P";
+    currentPosition[row][column] = pawn;
+    const movingPlayer = currentPlayer === "white" ? "White" : "Black";
+    currentPlayer = currentPlayer === "white" ? "black" : "white";
     renderBoard();
 
-    const movedPawn = board.querySelector(`[data-position="${toPosition}"]`);
-    movedPawn.focus();
-    status.textContent = `White pawn moved from ${fromPosition} to ${toPosition}. Select a white pawn to continue.`;
+    const nextPawn = currentPlayer === "white" ? "P" : "p";
+    const nextPiece = board.querySelector(`button.square[data-piece="${nextPawn}"]`)
+        || board.querySelector("button.square:enabled");
+    if (nextPiece !== null) {
+        nextPiece.focus();
+    }
+
+    status.textContent = `${movingPlayer} pawn moved from ${fromPosition} to ${toPosition}. ${turn.textContent}.`;
     return true;
 }
 
 function renderBoard() {
     clearSelection();
     board.replaceChildren();
+    turn.textContent = currentPlayer === "white" ? "White to move" : "Black to move";
+    turn.dataset.player = currentPlayer;
 
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
             const piece = currentPosition[row][column];
-            const isWhitePiece = piece !== "" && piece === piece.toUpperCase();
-            const square = document.createElement(isWhitePiece || piece === "" ? "button" : "div");
+            const isCurrentPlayerPiece = piece !== "" && getPieceColor(piece) === currentPlayer;
+            const square = document.createElement(isCurrentPlayerPiece || piece === "" ? "button" : "div");
             square.classList.add("square");
 
-            if (isWhitePiece) {
+            if (isCurrentPlayerPiece) {
                 square.type = "button";
                 square.setAttribute("aria-pressed", "false");
                 square.addEventListener("click", () => selectPiece(square, piece, row, column));
             } else if (piece === "") {
                 square.type = "button";
                 square.disabled = true;
-                square.addEventListener("click", () => moveWhitePawn(row, column));
+                square.addEventListener("click", () => movePawn(row, column));
             }
 
             const color = (row + column) % 2 === 0 ? "light" : "dark";
@@ -156,6 +184,7 @@ function renderBoard() {
             const rank = 8 - row;
             const position = `${files[column]}${rank}`;
             square.dataset.position = position;
+            square.dataset.piece = piece;
             square.title = position;
 
             if (piece === "") {
@@ -180,14 +209,14 @@ function renderBoard() {
 
             if (piece !== "") {
                 const pieceElement = document.createElement("span");
-                const pieceColor = piece === piece.toUpperCase() ? "white" : "black";
+                const pieceColor = getPieceColor(piece);
 
                 pieceElement.classList.add("piece", pieceColor);
                 // Request text glyphs instead of emoji for consistent piece styling.
                 pieceElement.textContent = pieceSymbols[piece] + "\uFE0E";
                 const pieceLabel = `${pieceColor} ${pieceNames[piece.toLowerCase()]} on ${position}`;
 
-                if (isWhitePiece) {
+                if (isCurrentPlayerPiece) {
                     square.setAttribute("aria-label", pieceLabel);
                     pieceElement.setAttribute("aria-hidden", "true");
                 } else {

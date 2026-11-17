@@ -28,6 +28,11 @@ body {
     font-weight: bold;
 }
 
+#turn[data-player="black"] {
+    background-color: #303030;
+    color: #fff;
+}
+
 .square {
     position: relative;
     display: flex;
