@@ -43,7 +43,15 @@ body {
 
 button.square {
     appearance: none;
+}
+
+button.square:enabled {
     cursor: pointer;
+}
+
+button.square:disabled {
+    cursor: default;
+    opacity: 1;
 }
 
 button.square:focus-visible {

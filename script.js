@@ -1,6 +1,6 @@
 const board = document.getElementById("board");
 const status = document.getElementById("status");
-const initialStatus = "Select a white piece. Movement is not available yet.";
+const initialStatus = "Select a white pawn, then choose a blue-dot square to move.";
 let selectedSquare = null;
 
 // Uppercase letters represent White; lowercase letters represent Black.
@@ -14,6 +14,9 @@ const startingPosition = [
     ["P", "P", "P", "P", "P", "P", "P", "P"],
     ["R", "N", "B", "Q", "K", "B", "N", "R"]
 ];
+
+// Preserve the starting layout while the current position changes.
+const currentPosition = startingPosition.map(row => row.slice());
 
 const pieceSymbols = {
     r: "♜", n: "♞", b: "♝", q: "♛", k: "♚", p: "♟",
@@ -35,7 +38,7 @@ function getWhitePawnAdvances(row, column) {
     const advances = [];
     const nextRow = row - 1;
 
-    if (nextRow < 0 || startingPosition[nextRow][column] !== "") {
+    if (nextRow < 0 || currentPosition[nextRow][column] !== "") {
         return advances;
     }
 
@@ -43,7 +46,7 @@ function getWhitePawnAdvances(row, column) {
     advances.push(`${files[column]}${nextRank}`);
 
     // A pawn can advance two squares from rank 2 only if both are empty.
-    if (row === 6 && startingPosition[row - 2][column] === "") {
+    if (row === 6 && currentPosition[row - 2][column] === "") {
         advances.push(`${files[column]}${nextRank + 1}`);
     }
 
@@ -59,6 +62,8 @@ function clearSelection() {
 
     for (const square of board.querySelectorAll(".pawn-advance")) {
         square.classList.remove("pawn-advance");
+        square.disabled = true;
+        square.setAttribute("aria-label", `Empty square ${square.dataset.position}`);
     }
 
     status.textContent = initialStatus;
@@ -84,14 +89,43 @@ function selectPiece(square, piece, row, column) {
         for (const position of advances) {
             const destination = board.querySelector(`[data-position="${position}"]`);
             destination.classList.add("pawn-advance");
+            destination.disabled = false;
+            destination.setAttribute("aria-label", `Move white pawn from ${square.dataset.position} to ${position}`);
         }
 
         message += advances.length > 0
-            ? ` Forward preview: ${advances.join(", ")}.`
+            ? ` Forward squares: ${advances.join(", ")}. Choose a blue-dot square to move.`
             : " No forward squares available.";
+    } else {
+        message += " Movement for this piece is not available yet.";
     }
 
-    status.textContent = `${message} Movement is not available yet.`;
+    status.textContent = message;
+}
+
+function moveWhitePawn(row, column) {
+    if (selectedSquare === null) {
+        return false;
+    }
+
+    const fromPosition = selectedSquare.dataset.position;
+    const fromColumn = files.indexOf(fromPosition[0]);
+    const fromRow = 8 - Number(fromPosition[1]);
+    const toPosition = `${files[column]}${8 - row}`;
+
+    if (currentPosition[fromRow][fromColumn] !== "P"
+        || !getWhitePawnAdvances(fromRow, fromColumn).includes(toPosition)) {
+        return false;
+    }
+
+    currentPosition[fromRow][fromColumn] = "";
+    currentPosition[row][column] = "P";
+    renderBoard();
+
+    const movedPawn = board.querySelector(`[data-position="${toPosition}"]`);
+    movedPawn.focus();
+    status.textContent = `White pawn moved from ${fromPosition} to ${toPosition}. Select a white pawn to continue.`;
+    return true;
 }
 
 function renderBoard() {
@@ -100,15 +134,19 @@ function renderBoard() {
 
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
-            const piece = startingPosition[row][column];
+            const piece = currentPosition[row][column];
             const isWhitePiece = piece !== "" && piece === piece.toUpperCase();
-            const square = document.createElement(isWhitePiece ? "button" : "div");
+            const square = document.createElement(isWhitePiece || piece === "" ? "button" : "div");
             square.classList.add("square");
 
             if (isWhitePiece) {
                 square.type = "button";
                 square.setAttribute("aria-pressed", "false");
                 square.addEventListener("click", () => selectPiece(square, piece, row, column));
+            } else if (piece === "") {
+                square.type = "button";
+                square.disabled = true;
+                square.addEventListener("click", () => moveWhitePawn(row, column));
             }
 
             const color = (row + column) % 2 === 0 ? "light" : "dark";
@@ -119,6 +157,10 @@ function renderBoard() {
             const position = `${files[column]}${rank}`;
             square.dataset.position = position;
             square.title = position;
+
+            if (piece === "") {
+                square.setAttribute("aria-label", `Empty square ${position}`);
+            }
 
             if (column === 0) {
                 const rankLabel = document.createElement("span");
@@ -163,7 +205,12 @@ function renderBoard() {
 
 board.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+        const previousSelection = selectedSquare;
         clearSelection();
+
+        if (previousSelection !== null) {
+            previousSelection.focus();
+        }
     }
 });
 
