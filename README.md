@@ -27,7 +27,8 @@ Unicode piece shapes may vary slightly depending on the fonts installed on your 
 
 - `index.html` defines the page structure and the turn indicator.
 - `style.css` defines the page layout and square colors.
-- `script.js` creates the 64 squares and displays pieces from an 8×8 array.
+- `script.js` uses `renderBoard()` to create the 64 squares and display pieces from an 8×8 array.
+  The function clears the previous squares before drawing the board again.
 
 ## Learning reference
 
