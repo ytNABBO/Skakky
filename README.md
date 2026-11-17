@@ -11,13 +11,15 @@ A personal chess project built with HTML, CSS and JavaScript, one small step at 
 - File labels (`a`–`h`) and rank labels (`8`–`1`) along the board edges.
 - Unicode piece symbols with English accessible names that include their square coordinates.
 - A turn indicator showing `White to move` for the starting position.
+- A blue outline on hovered squares for devices with hover support, with reduced-motion preferences respected.
 - Piece movement and game rules are not implemented yet.
 
 ## Run locally
 
 Open `index.html` in a web browser on Linux or Windows. No installation or build step is required.
 
-The board is currently a static display. Hover over a square to see its coordinate, such as `a8` or `h1`.
+The board is currently a static display. Hover over a square to see its coordinate, such as `a8` or `h1`, and a blue outline.
+The outline is visual feedback only; it does not indicate a legal move or select a piece.
 The turn indicator stays on White until move handling and turn changes are implemented.
 Unicode piece shapes may vary slightly depending on the fonts installed on your system.
 
@@ -31,3 +33,4 @@ Unicode piece shapes may vary slightly depending on the fonts installed on your 
 
 [Chess tutorial on YouTube](https://www.youtube.com/watch?v=SS5amIbX0Mo).
 This project is developed in small steps as a personal learning exercise.
+Skakky adapts the tutorial as a visual reference, using CSS Grid, separate source files and plain JavaScript.
