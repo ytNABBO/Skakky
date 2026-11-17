@@ -181,6 +181,36 @@ function getQueenMoves(row, column) {
     ]);
 }
 
+function getKingMoves(row, column) {
+    const options = { moves: [], captures: [] };
+    const king = currentPosition[row][column];
+
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+        for (let columnOffset = -1; columnOffset <= 1; columnOffset++) {
+            if (rowOffset === 0 && columnOffset === 0) {
+                continue;
+            }
+
+            const nextRow = row + rowOffset;
+            const nextColumn = column + columnOffset;
+            if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) {
+                continue;
+            }
+
+            const target = currentPosition[nextRow][nextColumn];
+            const position = `${files[nextColumn]}${8 - nextRow}`;
+
+            if (target === "") {
+                options.moves.push(position);
+            } else if (target.toLowerCase() !== "k" && getPieceColor(target) !== getPieceColor(king)) {
+                options.captures.push(position);
+            }
+        }
+    }
+
+    return options;
+}
+
 function getMoveOptions(row, column) {
     const piece = currentPosition[row][column].toLowerCase();
     if (piece === "p") {
@@ -198,6 +228,9 @@ function getMoveOptions(row, column) {
     if (piece === "q") {
         return getQueenMoves(row, column);
     }
+    if (piece === "k") {
+        return getKingMoves(row, column);
+    }
     return { moves: [], captures: [] };
 }
 
@@ -214,7 +247,7 @@ function clearSelection() {
         square.setAttribute("aria-label", getSquareLabel(square.dataset.piece, square.dataset.position));
     }
 
-    status.textContent = `Select a ${currentPlayer} pawn, knight, rook, bishop or queen, then choose a marked square.`;
+    status.textContent = `Select a ${currentPlayer} piece, then choose a marked square.`;
 }
 
 function selectPiece(square, piece, row, column) {
@@ -236,7 +269,7 @@ function selectPiece(square, piece, row, column) {
     const pieceName = pieceNames[piece.toLowerCase()];
     let message = `Selected ${currentPlayer} ${pieceName} on ${square.dataset.position}.`;
 
-    if (["p", "n", "r", "b", "q"].includes(piece.toLowerCase())) {
+    if (["p", "n", "r", "b", "q", "k"].includes(piece.toLowerCase())) {
         const { moves, captures } = getMoveOptions(row, column);
 
         for (const position of moves) {
