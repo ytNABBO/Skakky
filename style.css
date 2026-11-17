@@ -73,6 +73,10 @@ button.square:focus-visible {
     background-color: #b58863;
 }
 
+.square.in-check {
+    background-color: #e48678;
+}
+
 .piece {
     font-family: "DejaVu Sans", "Segoe UI Symbol", serif;
     font-size: clamp(20px, 8vw, 48px);

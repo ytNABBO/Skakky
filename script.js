@@ -35,6 +35,15 @@ const pieceNames = {
 };
 
 const files = "abcdefgh";
+const knightOffsets = [
+    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+    [1, -2], [1, 2], [2, -1], [2, 1]
+];
+const adjacentOffsets = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1], [0, 1],
+    [1, -1], [1, 0], [1, 1]
+];
 
 // Convert piece codes into colors and accessible square labels.
 function getPieceColor(piece) {
@@ -96,7 +105,7 @@ function getPawnCaptures(row, column) {
         }
 
         const target = currentPosition[nextRow][targetColumn];
-        // Kings are never captured; check and checkmate will be added later.
+        // Kings are never captured.
         if (target !== "" && target.toLowerCase() !== "k"
             && getPieceColor(target) !== getPieceColor(pawn)) {
             captures.push(`${files[targetColumn]}${8 - nextRow}`);
@@ -131,11 +140,7 @@ function getMovesForOffsets(row, column, offsets) {
 }
 
 function getKnightMoves(row, column) {
-    const offsets = [
-        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-        [1, -2], [1, 2], [2, -1], [2, 1]
-    ];
-    return getMovesForOffsets(row, column, offsets);
+    return getMovesForOffsets(row, column, knightOffsets);
 }
 
 function getSlidingMoves(row, column, directions) {
@@ -176,20 +181,11 @@ function getBishopMoves(row, column) {
 }
 
 function getQueenMoves(row, column) {
-    return getSlidingMoves(row, column, [
-        [-1, -1], [-1, 0], [-1, 1],
-        [0, -1], [0, 1],
-        [1, -1], [1, 0], [1, 1]
-    ]);
+    return getSlidingMoves(row, column, adjacentOffsets);
 }
 
 function getKingMoves(row, column) {
-    const offsets = [
-        [-1, -1], [-1, 0], [-1, 1],
-        [0, -1], [0, 1],
-        [1, -1], [1, 0], [1, 1]
-    ];
-    return getMovesForOffsets(row, column, offsets);
+    return getMovesForOffsets(row, column, adjacentOffsets);
 }
 
 function getMoveOptions(row, column) {
@@ -213,6 +209,77 @@ function getMoveOptions(row, column) {
         return getKingMoves(row, column);
     }
     return { moves: [], captures: [] };
+}
+
+function isSquareAttacked(position, row, column, attackerColor) {
+    // Look back from the target square to the pawn's possible origin.
+    const pawn = attackerColor === "white" ? "P" : "p";
+    const pawnRow = row + (pawn === "P" ? 1 : -1);
+    if (position[pawnRow]?.[column - 1] === pawn || position[pawnRow]?.[column + 1] === pawn) {
+        return true;
+    }
+
+    const knight = attackerColor === "white" ? "N" : "n";
+    if (knightOffsets.some(([dr, dc]) => position[row + dr]?.[column + dc] === knight)) {
+        return true;
+    }
+
+    // The first piece in each direction can attack or block the line.
+    for (const [rowStep, columnStep] of adjacentOffsets) {
+        let targetRow = row + rowStep;
+        let targetColumn = column + columnStep;
+        let distance = 1;
+
+        while (targetRow >= 0 && targetRow < 8 && targetColumn >= 0 && targetColumn < 8) {
+            const piece = position[targetRow][targetColumn];
+            if (piece !== "") {
+                if (getPieceColor(piece) === attackerColor) {
+                    const kind = piece.toLowerCase();
+                    const linePiece = rowStep === 0 || columnStep === 0 ? "r" : "b";
+                    if (kind === linePiece || kind === "q" || (kind === "k" && distance === 1)) {
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            targetRow += rowStep;
+            targetColumn += columnStep;
+            distance++;
+        }
+    }
+
+    return false;
+}
+
+function findCheckedKing(position, player) {
+    const king = player === "white" ? "K" : "k";
+    const row = position.findIndex(rank => rank.includes(king));
+    if (row === -1) {
+        return null;
+    }
+
+    const column = position[row].indexOf(king);
+    const opponent = player === "white" ? "black" : "white";
+    return isSquareAttacked(position, row, column, opponent) ? { row, column } : null;
+}
+
+function getLegalMoveOptions(row, column) {
+    const { moves, captures } = getMoveOptions(row, column);
+    const piece = currentPosition[row][column];
+    const player = getPieceColor(piece);
+
+    // Try each destination on a copy, including the removal of any captured piece.
+    function keepsKingSafe(destination) {
+        const targetRow = 8 - Number(destination[1]);
+        const targetColumn = files.indexOf(destination[0]);
+        const position = currentPosition.map(rank => rank.slice());
+        position[row][column] = "";
+        position[targetRow][targetColumn] = piece;
+        return findCheckedKing(position, player) === null;
+    }
+
+    return { moves: moves.filter(keepsKingSafe), captures: captures.filter(keepsKingSafe) };
 }
 
 // Select a piece, show its destinations, and apply the chosen move.
@@ -251,7 +318,7 @@ function selectPiece(square, piece, row, column) {
     const pieceName = pieceNames[piece.toLowerCase()];
     let message = `Selected ${currentPlayer} ${pieceName} on ${square.dataset.position}.`;
 
-    const { moves, captures } = getMoveOptions(row, column);
+    const { moves, captures } = getLegalMoveOptions(row, column);
 
     for (const position of moves) {
         const destination = board.querySelector(`[data-position="${position}"]`);
@@ -295,7 +362,7 @@ function movePiece(row, column) {
         return false;
     }
 
-    const { moves, captures } = getMoveOptions(fromRow, fromColumn);
+    const { moves, captures } = getLegalMoveOptions(fromRow, fromColumn);
     if (!moves.includes(toPosition) && !captures.includes(toPosition)) {
         return false;
     }
@@ -325,7 +392,9 @@ function movePiece(row, column) {
 function renderBoard() {
     clearSelection();
     board.replaceChildren();
-    turn.textContent = currentPlayer === "white" ? "White to move" : "Black to move";
+    const checkedKing = findCheckedKing(currentPosition, currentPlayer);
+    const playerName = currentPlayer === "white" ? "White" : "Black";
+    turn.textContent = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
     turn.dataset.player = currentPlayer;
 
     for (let row = 0; row < 8; row++) {
@@ -354,7 +423,12 @@ function renderBoard() {
             square.dataset.piece = piece;
             square.title = position;
 
-            square.setAttribute("aria-label", getSquareLabel(piece, position));
+            const isCheckedKing = checkedKing !== null && row === checkedKing.row && column === checkedKing.column;
+            const label = getSquareLabel(piece, position);
+            if (isCheckedKing) {
+                square.classList.add("in-check");
+            }
+            square.setAttribute("aria-label", isCheckedKing ? `${label}, in check` : label);
 
             if (column === 0) {
                 const rankLabel = document.createElement("span");

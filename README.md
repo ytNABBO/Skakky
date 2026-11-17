@@ -8,15 +8,17 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 
 - Responsive 8×8 board with coordinates and Unicode pieces.
 - Basic move and capture generation for all six piece types.
+- Check detection and move validation that keeps the moving player's king safe.
 - Alternating turns and keyboard-accessible move selection.
 
-Moves into check are not prevented. Check validation, castling, promotion and en passant are not implemented yet.
+Checkmate, stalemate, castling, promotion and en passant are still to come.
 
 ## How it works
 
 Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
 
 Blue dots mark empty destinations; red rings mark capture targets.
+When a king is in check, its square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
 Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
 Press Escape to cancel the selection. Reload the page to restore the starting position.
 
@@ -32,11 +34,11 @@ With Node.js installed, run:
 node tests/movement.cjs
 ```
 
-The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It requires no extra packages and covers movement geometry, not check validation or special moves.
+The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks selected positions for king safety. It requires no extra packages.
 
 ## Project files
 
 - `index.html` contains the page structure.
 - `style.css` styles the board and controls.
 - `script.js` stores the position, finds available moves, handles player input and redraws the board.
-- `tests/movement.cjs` checks move and capture generation.
+- `tests/movement.cjs` checks move and capture generation and king safety.
