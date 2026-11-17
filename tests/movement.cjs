@@ -337,29 +337,60 @@ console.log('PASS: fivefold repetition, position identity, first occurrence and 
 const pinnedClaimPosition = { e1: 'K', e2: 'R', a8: 'k', e8: 'r' };
 setDrawPosition(pinnedClaimPosition, 98);
 assert(vm.runInContext('claimDrawButton.hidden', context), 'The claim is unavailable with two half-moves still required.');
-assert.equal(vm.runInContext('claimFiftyMoveDraw("e2-e3")', context), false);
+assert.equal(vm.runInContext('claimDraw("fifty", "e2-e3")', context), false);
 
 setDrawPosition(pinnedClaimPosition, 99);
-const intendedMoves = vm.runInContext('getFiftyMoveClaimMoves().map(move => move.value)', context);
+const intendedMoves = vm.runInContext('getIntendedDrawClaimMoves("fifty").map(move => move.value)', context);
 assert(intendedMoves.includes('e2-e3'), 'A legal quiet move can be nominated.');
 assert(!intendedMoves.includes('e2-f2'), 'A pinned piece cannot nominate an illegal move.');
 assert(!intendedMoves.includes('e2-e8'), 'A capture resets the clock and cannot be nominated.');
-assert.equal(vm.runInContext('claimFiftyMoveDraw()', context), false, 'At 99 half-moves a nomination is required.');
-assert.equal(vm.runInContext('claimFiftyMoveDraw("e2-e3")', context), true);
+assert.equal(vm.runInContext('claimDraw("fifty")', context), false, 'At 99 half-moves a nomination is required.');
+assert.equal(vm.runInContext('claimDraw("fifty", "e2-e3")', context), true);
 assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed under the 50-move rule.');
 assert.equal(vm.runInContext('currentPosition[6][4]', context), 'R', 'The intended move must not be played.');
 assert.equal(vm.runInContext('currentPlayer', context), 'white');
 assert.equal(vm.runInContext('halfmoveClock', context), 99);
 assert.equal(turnMessage('white'), 'Draw claimed under the 50-move rule.', 'A redraw must preserve the result.');
 
-vm.runInContext('fiftyMoveDrawClaimed = false;', context);
+vm.runInContext('claimedDraw = null;', context);
 const pawnOnlyClaimPosition = { a1: 'K', b1: 'B', a2: 'P', b2: 'P', c2: 'P', h8: 'k' };
 setDrawPosition(pawnOnlyClaimPosition, 99);
 assert(vm.runInContext('claimDrawButton.hidden', context), 'Pawn moves cannot be nominated.');
 setDrawPosition(pawnOnlyClaimPosition, 100);
 assert.equal(vm.runInContext('turn.textContent', context), 'White to move', 'The 50-move draw requires a claim.');
 assert(!vm.runInContext('claimDrawButton.hidden', context), 'At 100 half-moves no nomination is required.');
-assert.equal(vm.runInContext('claimFiftyMoveDraw()', context), true);
+assert.equal(vm.runInContext('claimDraw("fifty")', context), true);
 assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed under the 50-move rule.');
 
 console.log('PASS: 50-move claims at the threshold or with a legal intended move.');
+
+const knightCycle = [['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']];
+function reachIntendedRepetition() {
+    vm.runInContext('claimedDraw = null; positionOccurrences.clear(); castlingRights.white.kingside = true;', context);
+    setDrawPosition({ e1: 'K', g1: 'N', h1: 'R', e8: 'k', g8: 'n', h8: 'r' }, 0);
+    vm.runInContext('recordCurrentPosition();', context);
+    assert(vm.runInContext('claimRepetitionButton.hidden', context));
+    for (const [from, to] of [...knightCycle, ...knightCycle.slice(0, 3)]) {
+        assert.equal(playMove(from, to), true);
+    }
+}
+
+reachIntendedRepetition();
+const repetitionSnapshot = 'JSON.stringify([getPositionKey(), halfmoveClock, Array.from(positionOccurrences)])';
+const beforeClaim = vm.runInContext(repetitionSnapshot, context);
+assert.equal(vm.runInContext('canClaimDrawNow("threefold")', context), false);
+assert.deepEqual(Array.from(vm.runInContext('getIntendedDrawClaimMoves("threefold").map(move => move.value)', context)),
+    ['f6-g8'], 'Only a move that would restore the same position a third time can be nominated.');
+assert.equal(vm.runInContext('claimDraw("threefold", "f6-e4")', context), false);
+assert.equal(vm.runInContext('claimDraw("threefold", "f6-g8")', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed by threefold repetition.');
+assert.equal(vm.runInContext(repetitionSnapshot, context), beforeClaim,
+    'A prospective claim must leave the board, turn, castling rights and counters unchanged.');
+
+reachIntendedRepetition();
+assert.equal(playMove('f6', 'g8'), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'White to move', 'Threefold repetition requires a claim.');
+assert.equal(vm.runInContext('claimDraw("threefold")', context), true);
+assert.equal(turnMessage('white'), 'Draw claimed by threefold repetition.', 'The claimed draw must survive a redraw.');
+
+console.log('PASS: direct and intended threefold claims, valid nominations and unchanged game state.');

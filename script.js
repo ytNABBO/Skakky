@@ -4,17 +4,24 @@ const status = document.getElementById("status");
 const turn = document.getElementById("turn");
 const promotionDialog = document.getElementById("promotion");
 const claimDrawButton = document.getElementById("claim-draw");
+const claimRepetitionButton = document.getElementById("claim-repetition");
 const drawClaimDialog = document.getElementById("draw-claim");
 const drawClaimMove = document.getElementById("draw-claim-move");
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
 let pendingPromotion = null;
+let pendingDrawClaim = null;
 let enPassant = null;
 let halfmoveClock = 0;
-let fiftyMoveDrawClaimed = false;
+let claimedDraw = null;
+const drawClaimResults = {
+    fifty: "Draw claimed under the 50-move rule.",
+    threefold: "Draw claimed by threefold repetition."
+};
 const claimHalfmoveLimit = 100; // 50 moves by each player.
 const drawHalfmoveLimit = 150; // 75 moves by each player.
+const claimRepetitionLimit = 3;
 const drawRepetitionLimit = 5;
 const positionOccurrences = new Map();
 const promotionChoices = ["q", "r", "b", "n"];
@@ -369,7 +376,7 @@ function getLegalMoveOptions(row, column) {
     return { moves: moves.filter(keepsKingSafe), captures: captures.filter(keepsKingSafe) };
 }
 
-function revokeRookCastlingRight(piece, row, column) {
+function revokeRookCastlingRight(rights, piece, row, column) {
     if (piece.toLowerCase() !== "r") {
         return;
     }
@@ -377,7 +384,17 @@ function revokeRookCastlingRight(piece, row, column) {
     const homeRow = player === "white" ? 7 : 0;
     const side = castlingSides.find(option => option.rookColumn === column);
     if (row === homeRow && side !== undefined) {
-        castlingRights[player][side.name] = false;
+        rights[player][side.name] = false;
+    }
+}
+
+function updateMovingCastlingRights(rights, piece, row, column) {
+    if (piece.toLowerCase() === "k") {
+        const player = getPieceColor(piece);
+        rights[player].kingside = false;
+        rights[player].queenside = false;
+    } else {
+        revokeRookCastlingRight(rights, piece, row, column);
     }
 }
 
@@ -399,6 +416,10 @@ function hasLegalMove(player) {
     return false;
 }
 
+function serializePosition(position, player, rights, enPassantSquare) {
+    return JSON.stringify([position, player, rights, enPassantSquare]);
+}
+
 function getPositionKey() {
     let enPassantSquare = "";
     if (enPassant !== null) {
@@ -416,7 +437,7 @@ function getPositionKey() {
         }
     }
 
-    return JSON.stringify([currentPosition, currentPlayer, castlingRights, enPassantSquare]);
+    return serializePosition(currentPosition, currentPlayer, castlingRights, enPassantSquare);
 }
 
 function recordCurrentPosition() {
@@ -425,9 +446,33 @@ function recordCurrentPosition() {
     positionOccurrences.set(key, occurrences + 1);
 }
 
-function getFiftyMoveClaimMoves() {
+function canClaimDrawNow(rule) {
+    if (rule === "fifty") {
+        return halfmoveClock >= claimHalfmoveLimit;
+    }
+    return (positionOccurrences.get(getPositionKey()) ?? 0) >= claimRepetitionLimit;
+}
+
+function wouldRepeatPosition(row, column, destination, piece) {
+    const targetRow = 8 - Number(destination[1]);
+    const targetColumn = files.indexOf(destination[0]);
+    const position = currentPosition.map(rank => rank.slice());
+    const rights = { white: { ...castlingRights.white }, black: { ...castlingRights.black } };
+    movePieceOnBoard(position, row, column, targetRow, targetColumn, piece);
+    updateMovingCastlingRights(rights, piece, row, column);
+
+    // These moves cannot create an en passant right.
+    const nextPlayer = currentPlayer === "white" ? "black" : "white";
+    const key = serializePosition(position, nextPlayer, rights, "");
+    return (positionOccurrences.get(key) ?? 0) >= claimRepetitionLimit - 1;
+}
+
+function getIntendedDrawClaimMoves(rule) {
     const claimMoves = [];
-    if (halfmoveClock !== claimHalfmoveLimit - 1) {
+    if (rule === "fifty" && halfmoveClock !== claimHalfmoveLimit - 1) {
+        return claimMoves;
+    }
+    if (rule === "threefold" && !Array.from(positionOccurrences.values()).some(count => count >= claimRepetitionLimit - 1)) {
         return claimMoves;
     }
 
@@ -439,8 +484,12 @@ function getFiftyMoveClaimMoves() {
             }
 
             const origin = `${files[column]}${8 - row}`;
+            // A pawn move or capture cannot return the board to an earlier position.
             const { moves } = getLegalMoveOptions(row, column);
             for (const destination of moves) {
+                if (rule === "threefold" && !wouldRepeatPosition(row, column, destination, piece)) {
+                    continue;
+                }
                 claimMoves.push({
                     value: `${origin}-${destination}`,
                     label: `${pieceNames[piece.toLowerCase()]} from ${origin} to ${destination}`
@@ -452,17 +501,17 @@ function getFiftyMoveClaimMoves() {
     return claimMoves;
 }
 
-function claimFiftyMoveDraw(intendedMove = "") {
-    if (gameResult !== null || pendingPromotion !== null) {
+function claimDraw(rule, intendedMove = "") {
+    if (!Object.hasOwn(drawClaimResults, rule)
+        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
         return false;
     }
 
-    if (halfmoveClock < claimHalfmoveLimit
-        && !getFiftyMoveClaimMoves().some(move => move.value === intendedMove)) {
+    if (!canClaimDrawNow(rule) && !getIntendedDrawClaimMoves(rule).some(move => move.value === intendedMove)) {
         return false;
     }
 
-    fiftyMoveDrawClaimed = true;
+    claimedDraw = drawClaimResults[rule];
     renderBoard();
     turn.focus();
     return true;
@@ -488,7 +537,7 @@ function clearSelection() {
 }
 
 function selectPiece(square, piece, row, column) {
-    if (gameResult !== null || pendingPromotion !== null) {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
         return;
     }
 
@@ -543,7 +592,7 @@ function selectPiece(square, piece, row, column) {
 }
 
 function movePiece(row, column, promotion = null) {
-    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null) {
+    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null) {
         return false;
     }
 
@@ -594,12 +643,8 @@ function movePiece(row, column, promotion = null) {
     if (isPawnMove && Math.abs(row - fromRow) === 2) {
         enPassant = { pawnRow: row, column, targetRow: (fromRow + row) / 2 };
     }
-    if (piece.toLowerCase() === "k") {
-        castlingRights[currentPlayer].kingside = false;
-        castlingRights[currentPlayer].queenside = false;
-    }
-    revokeRookCastlingRight(piece, fromRow, fromColumn);
-    revokeRookCastlingRight(capturedPiece, row, column);
+    updateMovingCastlingRights(castlingRights, piece, fromRow, fromColumn);
+    revokeRookCastlingRight(castlingRights, capturedPiece, row, column);
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     recordCurrentPosition();
@@ -636,8 +681,8 @@ function renderBoard() {
     const checkedKing = findCheckedKing(currentPosition, currentPlayer);
     const playerName = currentPlayer === "white" ? "White" : "Black";
     gameResult = null;
-    if (fiftyMoveDrawClaimed) {
-        gameResult = "Draw claimed under the 50-move rule.";
+    if (claimedDraw !== null) {
+        gameResult = claimedDraw;
     } else if (!hasLegalMove(currentPlayer)) {
         const winner = currentPlayer === "white" ? "Black" : "White";
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
@@ -648,7 +693,9 @@ function renderBoard() {
     }
 
     claimDrawButton.hidden = gameResult !== null
-        || (halfmoveClock < claimHalfmoveLimit && getFiftyMoveClaimMoves().length === 0);
+        || (!canClaimDrawNow("fifty") && getIntendedDrawClaimMoves("fifty").length === 0);
+    claimRepetitionButton.hidden = gameResult !== null
+        || (!canClaimDrawNow("threefold") && getIntendedDrawClaimMoves("threefold").length === 0);
     clearSelection();
     board.replaceChildren();
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
@@ -722,7 +769,7 @@ function renderBoard() {
 }
 
 board.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && selectedSquare !== null && pendingPromotion === null) {
+    if (event.key === "Escape" && selectedSquare !== null && pendingPromotion === null && pendingDrawClaim === null) {
         const previousSelection = selectedSquare;
         clearSelection();
         previousSelection.focus();
@@ -738,16 +785,16 @@ promotionDialog.addEventListener("close", () => {
     }
 });
 
-claimDrawButton.addEventListener("click", () => {
-    if (gameResult !== null || pendingPromotion !== null) {
+function openDrawClaim(rule) {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
         return;
     }
-    if (halfmoveClock >= claimHalfmoveLimit) {
-        claimFiftyMoveDraw();
+    if (canClaimDrawNow(rule)) {
+        claimDraw(rule);
         return;
     }
 
-    const moves = getFiftyMoveClaimMoves();
+    const moves = getIntendedDrawClaimMoves(rule);
     if (moves.length === 0) {
         return;
     }
@@ -765,12 +812,18 @@ claimDrawButton.addEventListener("click", () => {
     }
     drawClaimMove.value = "";
     drawClaimDialog.returnValue = "";
+    pendingDrawClaim = rule;
     drawClaimDialog.showModal();
-});
+}
+
+claimDrawButton.addEventListener("click", () => openDrawClaim("fifty"));
+claimRepetitionButton.addEventListener("click", () => openDrawClaim("threefold"));
 
 drawClaimDialog.addEventListener("close", () => {
-    if (drawClaimDialog.returnValue === "claim") {
-        claimFiftyMoveDraw(drawClaimMove.value);
+    const rule = pendingDrawClaim;
+    pendingDrawClaim = null;
+    if (rule !== null && drawClaimDialog.returnValue === "claim") {
+        claimDraw(rule, drawClaimMove.value);
     }
 });
 

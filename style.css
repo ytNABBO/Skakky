@@ -59,7 +59,7 @@ body {
 }
 
 .game-dialog button,
-#claim-draw {
+.claim-button {
     padding: 8px 12px;
     font: inherit;
     cursor: pointer;

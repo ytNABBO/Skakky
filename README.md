@@ -14,7 +14,7 @@ Skakky is an interactive chess project built with HTML, CSS and JavaScript. The 
 - Kingside and queenside castling for either color.
 - En passant captures for either color.
 - Automatic draws under the 75-move rule and fivefold repetition.
-- Draw claims under the 50-move rule, including claims based on an intended move.
+- Draw claims for threefold repetition and under the 50-move rule, including claims based on an intended move.
 - Alternating turns and keyboard-accessible move selection.
 
 ## How it works
@@ -33,6 +33,7 @@ If the player to move has no legal moves, the game ends. Checkmate gives the win
 The game ends in a draw when the same position occurs five times, including the starting position if it repeats. To match, the pieces, side to move, castling rights and any legal en passant capture must agree.
 The game also ends in a draw after 75 moves by each player without a pawn move or capture. Checkmate on the final move takes precedence. See [FIDE Laws of Chess, article 9.6](https://handbook.fide.com/chapter/e012023).
 Choose **Claim draw (50-move rule)** when available. You can claim after 50 moves by each player without a pawn move or capture. If one qualifying move is still needed, choose your intended move in the dialog to claim before playing it. See [FIDE Laws of Chess, article 9.3](https://handbook.fide.com/chapter/e012023).
+Choose **Claim draw (threefold repetition)** when the current position has occurred at least three times or select an intended move that would produce a third occurrence. See [FIDE Laws of Chess, article 9.2](https://handbook.fide.com/chapter/e012023).
 Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
 Press Escape to cancel the selection. Reload the page to restore the starting position.
 
@@ -59,7 +60,6 @@ The test compares all six piece types, both colors and every starting square aga
 
 ## Roadmap
 
-- Draw claims for threefold repetition, including claims based on an intended move.
 - Automatic draws in dead positions where neither player can give checkmate by any legal sequence.
 - Resignation and draw offers.
 - Optional chess clocks and results when a player runs out of time.

@@ -12,7 +12,8 @@
     <p id="status" role="status"></p>
     <div id="board" role="group" aria-label="Chessboard"></div>
     <p id="turn" role="status" tabindex="-1">White to move</p>
-    <button id="claim-draw" type="button" hidden>Claim draw (50-move rule)</button>
+    <button id="claim-draw" class="claim-button" type="button" hidden>Claim draw (50-move rule)</button>
+    <button id="claim-repetition" class="claim-button" type="button" hidden>Claim draw (threefold repetition)</button>
     <dialog id="promotion" class="game-dialog" aria-labelledby="promotion-title">
         <h2 id="promotion-title">Promote pawn</h2>
         <form method="dialog">
@@ -26,7 +27,7 @@
     <dialog id="draw-claim" class="game-dialog" aria-labelledby="draw-claim-title">
         <h2 id="draw-claim-title">Claim draw by intended move</h2>
         <form method="dialog">
-            <label for="draw-claim-move">Move that reaches the 50-move limit</label>
+            <label for="draw-claim-move">Intended move</label>
             <select id="draw-claim-move" required autofocus></select>
             <p>The game ends in a draw before the move is played.</p>
             <button value="claim">Claim draw</button>
