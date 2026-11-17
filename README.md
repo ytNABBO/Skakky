@@ -1,69 +1,29 @@
 # Skakky
 
-Skakky is an interactive chess project built with HTML, CSS and JavaScript. The goal is to create a complete browser chess game. The current version shows the standard starting position and supports basic moves, captures and alternating turns.
+An interactive chess game built with HTML, CSS and JavaScript.
 
 ![Chessboard in the standard starting position](docs/preview.png)
 
-## Current features
+## Features
 
-- Responsive 8×8 board with coordinates and Unicode pieces.
-- Basic move and capture generation for all six piece types.
-- Check detection and move validation that keeps the moving player's king safe.
-- Checkmate and stalemate detection with a result that ends the game.
-- Pawn promotion to a queen, rook, bishop or knight for either color.
-- Kingside and queenside castling for either color.
-- En passant captures for either color.
-- Automatic draws under the 75-move rule and fivefold repetition.
-- Draw claims for threefold repetition and under the 50-move rule, including claims based on an intended move.
-- Draw offers and draws by agreement.
-- Automatic draws in dead positions recognized by insufficient material.
-- Alternating turns and keyboard-accessible move selection.
+- Legal moves, captures, check, checkmate and stalemate.
+- Castling, en passant and pawn promotion.
+- Automatic draws, draw claims and draw offers.
+- Responsive board with keyboard support.
 
-## How it works
+## Play
 
-Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
+Open `index.html` in a browser. Select a piece and choose a highlighted square. Reload the page to start a new game.
 
-When you select a destination on the last rank for a pawn, choose the piece to promote it to. Cancel or press Escape to return to the board and choose a move again.
+## Tests
 
-To castle, select the king and move it two squares toward the rook. The rook moves automatically. The king and rook must never have moved, the squares between them must be empty and the king cannot start in, move through or end in check.
-
-To capture en passant, move your adjacent pawn diagonally onto the square the opposing pawn just passed over in its two-square advance. The capture is available only on your immediate reply.
-
-Blue dots mark moves without captures. Red rings mark capture targets, including the empty destination for en passant.
-During play, a checked king's square is shaded red and the turn indicator says "in check". Only moves that get the king out of check are available.
-If the player to move has no legal moves, the game ends. Checkmate gives the win to the opponent. Stalemate is a draw because the king is safe but the player cannot move.
-The game also draws automatically with just the kings, with one bishop or knight besides the kings, or with bishops as the only remaining pieces besides the kings when all bishops occupy squares of the same color. These are dead positions where neither player can give mate by any legal sequence. See [FIDE Laws of Chess, article 5.2.2](https://handbook.fide.com/chapter/e012023).
-The game ends in a draw when the same position occurs five times, including the starting position if it repeats. To match, the pieces, side to move, castling rights and any legal en passant capture must agree.
-The game also ends in a draw after 75 moves by each player without a pawn move or capture. Checkmate on the final move takes precedence. See [FIDE Laws of Chess, article 9.6](https://handbook.fide.com/chapter/e012023).
-Choose **Claim draw (50-move rule)** when available. You can claim after 50 moves by each player without a pawn move or capture. If one qualifying move is still needed, choose your intended move in the dialog to claim before playing it. See [FIDE Laws of Chess, article 9.3](https://handbook.fide.com/chapter/e012023).
-Choose **Claim draw (threefold repetition)** when the current position has occurred at least three times or select an intended move that would produce a third occurrence. See [FIDE Laws of Chess, article 9.2](https://handbook.fide.com/chapter/e012023).
-From Black's first turn, choose **Offer draw with next move** to send an offer when you complete a move. Press it again before moving to cancel the queued offer. The other player can accept, decline or play a move to decline. A draw by agreement requires both players to have made at least one move. See [FIDE Laws of Chess, articles 5.2.3 and 9.1](https://handbook.fide.com/chapter/e012023).
-Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
-Press Escape to cancel the selection. Reload the page to restore the starting position.
-
-## Run locally
-
-Open `index.html` in a browser. No installation or build step is required.
-
-## Check movement rules
-
-With Node.js installed, run:
-
-```sh
-node tests/movement.cjs
-```
-
-The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It also checks king safety, special moves and game results. It requires no extra packages.
+Run `node tests/movement.cjs` with Node.js. No extra packages are required.
 
 ## Project files
 
-- `index.html` contains the page structure.
-- `style.css` styles the board and controls.
-- `script.js` stores the position, finds available moves, handles player input and redraws the board.
-- `tests/movement.cjs` checks move generation, king safety and game results.
+- `index.html` — page structure.
+- `style.css` — board and controls.
+- `script.js` — chess rules and gameplay.
+- `tests/movement.cjs` — movement and game-rule tests.
 
-## Roadmap
-
-- Other dead positions, such as certain locked pawn positions where neither player can give mate.
-- Resignation.
-- Optional chess clocks and results when a player runs out of time.
+Resignation, chess clocks and some rare dead positions are not implemented yet.
