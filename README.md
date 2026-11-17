@@ -16,12 +16,27 @@ Moves into check are not prevented. Check validation, castling, promotion and en
 
 Select one of your pieces to see its available destinations. Choose a marked square to move or capture, then the turn passes to the other player.
 
+Blue dots mark empty destinations; red rings mark capture targets.
+Use Tab or Shift+Tab to reach pieces and highlighted destinations, then press Enter or Space to activate them.
+Press Escape to cancel the selection. Reload the page to restore the starting position.
+
 ## Run locally
 
 Open `index.html` in a browser. No installation or build step is required.
+
+## Check movement rules
+
+With Node.js installed, run:
+
+```sh
+node tests/movement.cjs
+```
+
+The test compares all six piece types, both colors and every starting square against an independent movement calculation on empty boards and boards with obstacles. It requires no extra packages and covers movement geometry, not check validation or special moves.
 
 ## Project files
 
 - `index.html` contains the page structure.
 - `style.css` styles the board and controls.
 - `script.js` stores the position, finds available moves, handles player input and redraws the board.
+- `tests/movement.cjs` checks move and capture generation.
