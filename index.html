@@ -12,8 +12,12 @@
     <p id="status" role="status"></p>
     <div id="board" role="group" aria-label="Chessboard"></div>
     <p id="turn" role="status" tabindex="-1">White to move</p>
-    <button id="claim-draw" class="claim-button" type="button" hidden>Claim draw (50-move rule)</button>
-    <button id="claim-repetition" class="claim-button" type="button" hidden>Claim draw (threefold repetition)</button>
+    <div id="draw-offer-message" role="status"></div>
+    <button id="offer-draw" class="game-button" type="button" aria-pressed="false" hidden>Offer draw with next move</button>
+    <button id="accept-draw" class="game-button" type="button" hidden>Accept draw</button>
+    <button id="decline-draw" class="game-button" type="button" hidden>Decline draw</button>
+    <button id="claim-draw" class="game-button" type="button" hidden>Claim draw (50-move rule)</button>
+    <button id="claim-repetition" class="game-button" type="button" hidden>Claim draw (threefold repetition)</button>
     <dialog id="promotion" class="game-dialog" aria-labelledby="promotion-title">
         <h2 id="promotion-title">Promote pawn</h2>
         <form method="dialog">

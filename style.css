@@ -59,10 +59,19 @@ body {
 }
 
 .game-dialog button,
-.claim-button {
+.game-button {
     padding: 8px 12px;
     font: inherit;
     cursor: pointer;
+}
+
+.game-button[aria-pressed="true"] {
+    background-color: #f0d9b5;
+    color: #202020;
+}
+
+#draw-offer-message:not(:empty) {
+    margin: 12px 0;
 }
 
 #draw-claim form > label,

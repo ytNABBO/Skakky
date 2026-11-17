@@ -7,6 +7,10 @@ const claimDrawButton = document.getElementById("claim-draw");
 const claimRepetitionButton = document.getElementById("claim-repetition");
 const drawClaimDialog = document.getElementById("draw-claim");
 const drawClaimMove = document.getElementById("draw-claim-move");
+const drawOfferMessage = document.getElementById("draw-offer-message");
+const offerDrawButton = document.getElementById("offer-draw");
+const acceptDrawButton = document.getElementById("accept-draw");
+const declineDrawButton = document.getElementById("decline-draw");
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
@@ -14,7 +18,10 @@ let pendingPromotion = null;
 let pendingDrawClaim = null;
 let enPassant = null;
 let halfmoveClock = 0;
-let claimedDraw = null;
+let movesPlayed = 0;
+let drawOfferQueued = false;
+let drawOfferedBy = null;
+let declaredResult = null;
 const drawClaimResults = {
     fifty: "Draw claimed under the 50-move rule.",
     threefold: "Draw claimed by threefold repetition."
@@ -511,9 +518,65 @@ function claimDraw(rule, intendedMove = "") {
         return false;
     }
 
-    claimedDraw = drawClaimResults[rule];
+    declaredResult = drawClaimResults[rule];
     renderBoard();
     turn.focus();
+    return true;
+}
+
+function canQueueDrawOffer() {
+    // Black can offer with the first reply since both players will then have moved.
+    return gameResult === null && movesPlayed > 0 && drawOfferedBy === null;
+}
+
+function hasIncomingDrawOffer() {
+    return gameResult === null && movesPlayed >= 2
+        && drawOfferedBy !== null && drawOfferedBy !== currentPlayer;
+}
+
+function updateDrawOfferControls() {
+    const canOffer = canQueueDrawOffer();
+    const canRespond = hasIncomingDrawOffer();
+    offerDrawButton.hidden = !canOffer;
+    offerDrawButton.setAttribute("aria-pressed", String(canOffer && drawOfferQueued));
+    acceptDrawButton.hidden = !canRespond;
+    declineDrawButton.hidden = !canRespond;
+
+    if (canRespond) {
+        const playerName = drawOfferedBy === "white" ? "White" : "Black";
+        drawOfferMessage.textContent = `${playerName} offers a draw.`;
+    } else {
+        drawOfferMessage.textContent = canOffer && drawOfferQueued
+            ? "The draw offer will be sent with your next move."
+            : "";
+    }
+}
+
+function toggleDrawOffer() {
+    if (!canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null) {
+        return false;
+    }
+
+    drawOfferQueued = !drawOfferQueued;
+    updateDrawOfferControls();
+    return true;
+}
+
+function respondToDrawOffer(accept) {
+    if (!hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null) {
+        return false;
+    }
+
+    drawOfferedBy = null;
+    if (accept) {
+        declaredResult = "Draw by agreement.";
+        renderBoard();
+        turn.focus();
+    } else {
+        updateDrawOfferControls();
+        const nextSquare = selectedSquare ?? board.querySelector("button.square:enabled");
+        nextSquare?.focus();
+    }
     return true;
 }
 
@@ -646,6 +709,9 @@ function movePiece(row, column, promotion = null) {
     updateMovingCastlingRights(castlingRights, piece, fromRow, fromColumn);
     revokeRookCastlingRight(castlingRights, capturedPiece, row, column);
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
+    movesPlayed++;
+    drawOfferedBy = drawOfferQueued ? currentPlayer : null;
+    drawOfferQueued = false;
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     recordCurrentPosition();
     renderBoard();
@@ -681,8 +747,8 @@ function renderBoard() {
     const checkedKing = findCheckedKing(currentPosition, currentPlayer);
     const playerName = currentPlayer === "white" ? "White" : "Black";
     gameResult = null;
-    if (claimedDraw !== null) {
-        gameResult = claimedDraw;
+    if (declaredResult !== null) {
+        gameResult = declaredResult;
     } else if (!hasLegalMove(currentPlayer)) {
         const winner = currentPlayer === "white" ? "Black" : "White";
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
@@ -692,10 +758,15 @@ function renderBoard() {
         gameResult = "Draw by fivefold repetition.";
     }
 
+    if (gameResult !== null) {
+        drawOfferQueued = false;
+        drawOfferedBy = null;
+    }
     claimDrawButton.hidden = gameResult !== null
         || (!canClaimDrawNow("fifty") && getIntendedDrawClaimMoves("fifty").length === 0);
     claimRepetitionButton.hidden = gameResult !== null
         || (!canClaimDrawNow("threefold") && getIntendedDrawClaimMoves("threefold").length === 0);
+    updateDrawOfferControls();
     clearSelection();
     board.replaceChildren();
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
@@ -818,6 +889,9 @@ function openDrawClaim(rule) {
 
 claimDrawButton.addEventListener("click", () => openDrawClaim("fifty"));
 claimRepetitionButton.addEventListener("click", () => openDrawClaim("threefold"));
+offerDrawButton.addEventListener("click", toggleDrawOffer);
+acceptDrawButton.addEventListener("click", () => respondToDrawOffer(true));
+declineDrawButton.addEventListener("click", () => respondToDrawOffer(false));
 
 drawClaimDialog.addEventListener("close", () => {
     const rule = pendingDrawClaim;

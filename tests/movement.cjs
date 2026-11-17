@@ -352,7 +352,7 @@ assert.equal(vm.runInContext('currentPlayer', context), 'white');
 assert.equal(vm.runInContext('halfmoveClock', context), 99);
 assert.equal(turnMessage('white'), 'Draw claimed under the 50-move rule.', 'A redraw must preserve the result.');
 
-vm.runInContext('claimedDraw = null;', context);
+vm.runInContext('declaredResult = null;', context);
 const pawnOnlyClaimPosition = { a1: 'K', b1: 'B', a2: 'P', b2: 'P', c2: 'P', h8: 'k' };
 setDrawPosition(pawnOnlyClaimPosition, 99);
 assert(vm.runInContext('claimDrawButton.hidden', context), 'Pawn moves cannot be nominated.');
@@ -366,7 +366,7 @@ console.log('PASS: 50-move claims at the threshold or with a legal intended move
 
 const knightCycle = [['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']];
 function reachIntendedRepetition() {
-    vm.runInContext('claimedDraw = null; positionOccurrences.clear(); castlingRights.white.kingside = true;', context);
+    vm.runInContext('declaredResult = null; positionOccurrences.clear(); castlingRights.white.kingside = true;', context);
     setDrawPosition({ e1: 'K', g1: 'N', h1: 'R', e8: 'k', g8: 'n', h8: 'r' }, 0);
     vm.runInContext('recordCurrentPosition();', context);
     assert(vm.runInContext('claimRepetitionButton.hidden', context));
@@ -394,3 +394,42 @@ assert.equal(vm.runInContext('claimDraw("threefold")', context), true);
 assert.equal(turnMessage('white'), 'Draw claimed by threefold repetition.', 'The claimed draw must survive a redraw.');
 
 console.log('PASS: direct and intended threefold claims, valid nominations and unchanged game state.');
+
+vm.runInContext(`
+    declaredResult = null;
+    movesPlayed = 0;
+    halfmoveClock = 0;
+    enPassant = null;
+    positionOccurrences.clear();
+    startingPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+    currentPlayer = "white";
+    recordCurrentPosition();
+    renderBoard();
+`, context);
+assert.equal(vm.runInContext('toggleDrawOffer()', context), false, 'A draw cannot be offered before the first move.');
+assert.equal(playMove('e2', 'e4'), true);
+assert.equal(vm.runInContext('toggleDrawOffer()', context), true);
+assert.equal(vm.runInContext('respondToDrawOffer(true)', context), false, 'A queued offer cannot be accepted.');
+assert.equal(vm.runInContext('toggleDrawOffer()', context), true, 'The player can cancel before sending.');
+assert.equal(vm.runInContext('toggleDrawOffer()', context), true);
+assert.equal(playMove('e7', 'e4'), false);
+assert(vm.runInContext('drawOfferQueued', context), 'A rejected move cannot send the offer.');
+assert.equal(playMove('e7', 'e5'), true);
+assert.equal(vm.runInContext('drawOfferMessage.textContent', context), 'Black offers a draw.');
+
+assert.equal(vm.runInContext('respondToDrawOffer(false)', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'White to move');
+assert.equal(vm.runInContext('toggleDrawOffer()', context), true);
+assert.equal(playMove('g1', 'f3'), true);
+assert.equal(playMove('b8', 'c6'), true);
+assert.equal(vm.runInContext('hasIncomingDrawOffer()', context), false, 'Playing a move declines the offer.');
+
+assert.equal(vm.runInContext('toggleDrawOffer()', context), true);
+assert.equal(playMove('f1', 'c4'), true);
+const beforeAgreement = vm.runInContext(repetitionSnapshot, context);
+assert.equal(vm.runInContext('respondToDrawOffer(true)', context), true);
+assert.equal(turnMessage('black'), 'Draw by agreement.');
+assert.equal(vm.runInContext(repetitionSnapshot, context), beforeAgreement, 'Accepting changes only the result.');
+assert.equal(playMove('g8', 'f6'), false, 'Play must stop after an accepted offer.');
+
+console.log('PASS: offer timing, cancellation, explicit and implicit decline, and draw by agreement.');
