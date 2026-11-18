@@ -19,7 +19,7 @@ Open `index.html` in a browser. Select a piece and choose a highlighted square. 
 
 Games are untimed by default. Before the first move, choose 3 minutes + 2 seconds per move, 5 minutes, or 10 minutes + 5 seconds per move and press **Start clock**. White's time starts immediately. Each completed legal move switches the clock automatically and adds the increment. The time control locks when the clock starts or the first untimed move is played.
 
-The clock continues while selecting a promotion, confirming resignation or preparing a draw claim. A valid confirmed claim stops play; preparation can be cancelled. All game results stop both clocks. A player who runs out of time loses unless the opponent cannot checkmate under the material checks described below. Time uses elapsed timestamps, so delayed updates in background tabs do not pause the clock.
+The clock continues while selecting a promotion, confirming resignation or preparing a draw claim. A valid confirmed claim stops play; preparation can be cancelled. All game results stop both clocks. A player who runs out of time loses unless the opponent cannot checkmate under the proofs described below. Time uses elapsed timestamps, so delayed updates in background tabs do not pause the clock.
 
 ## Tests
 
@@ -53,8 +53,10 @@ The blockade proof is conservative: a possible en passant capture, a rook or que
 
 A separate proof considers all legal continuations, including all four promotion choices, up to eight half-moves and 64 analyzed positions. Every branch must end in a known dead position, stalemate or a closed cycle without an unproved exit. If any branch can still reach checkmate or remains unproved when a limit is reached, this check does not declare a draw. Simulated moves are never played. For example, if both replies to a check capture the last mating piece and leave a king and bishop against a king, the draw is declared before either capture.
 
+Resignation and time forfeits use the material checks and the same bounded search for the specific opponent (Articles 5.1.2 and 6.9). For example, if the only legal move would checkmate the opponent, that opponent has no possible mating continuation. Resigning or running out of time in that position is a draw, even if the opponent has a rook or other mating material. The position remains playable until resignation or flag-fall because the active player can still give checkmate. Unproved cases retain the usual loss result.
+
 Remaining work:
 
-- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, fortresses that permit checks, continuations beyond the eight-half-move or 64-position search limits. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
+- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, fortresses that permit checks, continuations beyond the eight-half-move or 64-position search limits. Undetected dead positions and one-sided impossible mates beyond these proofs remain a limitation.
 
 Piece selection and cancellable move dialogs are interface conveniences; physical touch-move rules, arbiter penalties and tournament-specific draw restrictions are not enforced.

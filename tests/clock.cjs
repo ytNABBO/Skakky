@@ -245,6 +245,32 @@ for (const [pieces, drawn] of [
     assert.equal(game.result(), drawn ? 'Draw on time: the opponent cannot checkmate.' : 'White ran out of time. Black wins.');
 }
 
+// A player can flag while their only legal move would mate the opponent.
+// The opponent then has no mating continuation despite having substantial material.
+const forcedWinningPosition = { a1: 'K', b2: 'R', c5: 'N', d3: 'N', a3: 'k', a2: 'r', d2: 'n' };
+const reflectedWinningPosition = Object.fromEntries(Object.entries(forcedWinningPosition).map(([square, piece]) =>
+    [square[0] + (9 - Number(square[1])), piece === piece.toUpperCase() ? piece.toLowerCase() : piece.toUpperCase()]));
+for (const [player, pieces] of [['white', forcedWinningPosition], ['black', reflectedWinningPosition]]) {
+    const game = harness();
+    game.start('300+0');
+    if (player === 'black') game.move('e2', 'e4');
+    game.fixture(pieces, player);
+    assert.equal(game.evaluate('gameResult'), null, 'The active player can still give checkmate.');
+    game.get('resign').click();
+    const before = game.evaluate('JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])');
+    game.advance(300000);
+    assert.equal(game.result(), 'Draw on time: the opponent cannot checkmate.');
+    assert.equal(game.remaining(player), 0);
+    assert.equal(game.active(), null);
+    assert.equal(game.timers(), 0);
+    assert.equal(game.get('resignation').open, false);
+    assert.equal(game.evaluate('JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])'), before,
+        'A mating-potential proof must not play the winning move or alter actual history.');
+    game.get('resignation').close('resign');
+    assert.equal(game.result(), 'Draw on time: the opponent cannot checkmate.');
+}
+console.log('PASS: both-color timeout draws when the opponent cannot mate through any legal continuation, with pending-dialog cleanup.');
+
 for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', 'forced-line', 'branching-line', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();

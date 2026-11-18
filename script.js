@@ -158,7 +158,7 @@ function syncChessClock() {
     }
 
     const opponent = player === "white" ? "black" : "white";
-    declaredResult = cannotMateByMaterial(currentPosition, opponent)
+    declaredResult = cannotMateByContinuation(opponent)
         ? "Draw on time: the opponent cannot checkmate."
         : `${player === "white" ? "White" : "Black"} ran out of time. ${opponent === "white" ? "White" : "Black"} wins.`;
     stopChessClock();
@@ -702,8 +702,9 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     return true;
 }
 
-// Prove every continuation dead within fixed limits, without playing simulated moves.
-function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
+// Prove no continuation reaches a mate by the specified player, or by either player.
+function hasNoMatingContinuation(matingPlayer, maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
+    if (matingPlayer !== null && matingPlayer !== "white" && matingPlayer !== "black") return false;
     if (!Number.isInteger(maxPlies) || maxPlies < 0 || maxPlies > deadPositionPlyLimit
         || !Number.isInteger(maxNodes) || maxNodes < 1 || maxNodes > deadPositionNodeLimit) return false;
     const pieces = currentPosition.flat();
@@ -729,7 +730,7 @@ function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPo
     const original = savePosition();
     const path = new Set();
     let nodes = 0;
-    function allContinuationsDead(depth) {
+    function allContinuationsSafe(depth) {
         if (nodes >= maxNodes) return false;
         nodes++;
         const replies = [];
@@ -748,8 +749,13 @@ function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPo
                 }
             }
         }
-        if (replies.length === 0) return findCheckedKing(currentPosition, currentPlayer) === null;
-        if (isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
+        if (replies.length === 0) {
+            // A mate by the other player also ends any chance for the specified player to mate.
+            return findCheckedKing(currentPosition, currentPlayer) === null
+                || (matingPlayer !== null && currentPlayer === matingPlayer);
+        }
+        if ((matingPlayer !== null && cannotMateByMaterial(currentPosition, matingPlayer))
+            || isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
         const key = serializePosition(currentPosition, currentPlayer, castlingRights, enPassant);
         // Close only the current path; every other exit from the cycle must still be checked.
         if (path.has(key)) return true;
@@ -758,7 +764,7 @@ function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPo
         const parent = savePosition();
         try {
             for (const { row, column, toRow, toColumn, promotion } of replies) {
-                let provedDead;
+                let provedSafe;
                 try {
                     const piece = currentPosition[row][column];
                     const placedPiece = promotion === null ? piece
@@ -769,12 +775,12 @@ function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPo
                     enPassant = piece.toLowerCase() === "p" && Math.abs(toRow - row) === 2
                         ? { pawnRow: toRow, column: toColumn, targetRow: (row + toRow) / 2 } : null;
                     currentPlayer = currentPlayer === "white" ? "black" : "white";
-                    provedDead = allContinuationsDead(depth + 1);
+                    provedSafe = allContinuationsSafe(depth + 1);
                 } finally {
                     restorePosition(parent);
                 }
-                // A possible mate or an unproved branch is enough to keep the game active.
-                if (!provedDead) return false;
+                // Any possible mating continuation for the target, or uncertainty, rejects the proof.
+                if (!provedSafe) return false;
             }
             return true;
         } finally {
@@ -782,10 +788,19 @@ function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPo
         }
     }
     try {
-        return allContinuationsDead(0);
+        return allContinuationsSafe(0);
     } finally {
         restorePosition(original);
     }
+}
+
+function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
+    return hasNoMatingContinuation(null, maxPlies, maxNodes);
+}
+
+function cannotMateByContinuation(player, maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
+    if (player !== "white" && player !== "black") return false;
+    return hasNoMatingContinuation(player, maxPlies, maxNodes);
 }
 
 // Material can prove mating impossible even when the other player can still mate.
@@ -818,7 +833,7 @@ function resign() {
     }
     const opponent = currentPlayer === "white" ? "black" : "white";
     const winner = opponent === "white" ? "White" : "Black";
-    declaredResult = cannotMateByMaterial(currentPosition, opponent)
+    declaredResult = cannotMateByContinuation(opponent)
         ? "Draw on resignation: the opponent cannot checkmate."
         : `${currentPlayer === "white" ? "White" : "Black"} resigns. ${winner} wins.`;
     renderBoard();

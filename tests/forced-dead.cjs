@@ -80,7 +80,7 @@ const snapshot = `JSON.stringify([
     turn.textContent, status.textContent, promotionChoices
 ])`;
 
-function prove(game, expected, limit = 8, maxNodes = 64) {
+function proveQuery(game, expected, expression) {
     const before = game.evaluate(snapshot);
     const board = game.evaluate('currentPosition');
     const ranks = game.evaluate('currentPosition.slice()');
@@ -89,7 +89,7 @@ function prove(game, expected, limit = 8, maxNodes = 64) {
     const selected = game.evaluate('selectedSquare');
     const clock = game.evaluate('chessClock');
     const timers = game.timerCount();
-    assert.equal(game.evaluate(`isDeadByContinuation(${JSON.stringify(limit)}, ${JSON.stringify(maxNodes)})`), expected);
+    assert.equal(game.evaluate(expression), expected);
     assert.equal(game.evaluate(snapshot), before, 'Analysis must restore all live game values.');
     assert.equal(game.evaluate('currentPosition'), board, 'The board object must retain its identity.');
     for (let row = 0; row < 8; row++) assert.equal(game.evaluate(`currentPosition[${row}]`), ranks[row]);
@@ -99,6 +99,14 @@ function prove(game, expected, limit = 8, maxNodes = 64) {
     assert.equal(game.evaluate('selectedSquare'), selected);
     assert.equal(game.evaluate('chessClock'), clock);
     assert.equal(game.timerCount(), timers, 'Analysis must not alter clock timers.');
+}
+
+function prove(game, expected, limit = 8, maxNodes = 64) {
+    proveQuery(game, expected, `isDeadByContinuation(${JSON.stringify(limit)}, ${JSON.stringify(maxNodes)})`);
+}
+
+function proveCannotMate(game, player, expected, limit = 8, maxNodes = 64) {
+    proveQuery(game, expected, `cannotMateByContinuation(${JSON.stringify(player)}, ${JSON.stringify(limit)}, ${JSON.stringify(maxNodes)})`);
 }
 
 const forcedCapture = { a1: 'K', h6: 'B', c2: 'k', a2: 'r' };
@@ -249,3 +257,88 @@ branchingIntegration.evaluate('renderBoard();');
 assert.equal(branchingIntegration.evaluate('turn.textContent'), 'Draw by dead position.');
 assert.equal(branchingIntegration.evaluate('document.activeElement === turn'), true);
 console.log('PASS: a real move declares the branching dead draw while board, counters and history retain only actual play.');
+
+
+const forcedWinningMove = { a1: 'K', b2: 'R', c5: 'N', d3: 'N', a3: 'k', a2: 'r', d2: 'n' };
+const reflectedWinningMove = Object.fromEntries(Object.entries(forcedWinningMove).map(([square, piece]) =>
+    [square[0] + (9 - Number(square[1])), piece === piece.toUpperCase() ? piece.toLowerCase() : piece.toUpperCase()]));
+for (const [pieces, player, unablePlayer, expectedMoves] of [
+    [forcedWinningMove, 'white', 'black', ['b2-a2']],
+    [reflectedWinningMove, 'black', 'white', ['b7-a7']]
+]) {
+    const game = harness(pieces, player);
+    assert.deepEqual(game.moves(), expectedMoves);
+    prove(game, false, 1, 2);
+    proveCannotMate(game, unablePlayer, false, 0);
+    proveCannotMate(game, unablePlayer, false, 1, 1);
+    proveCannotMate(game, unablePlayer, true, 1, 2);
+    proveCannotMate(game, unablePlayer, true);
+    proveCannotMate(game, player, false);
+    game.evaluate('recordCurrentPosition(); renderBoard();');
+    assert.equal(game.evaluate('gameResult'), null, 'A position where one side can mate is not an automatic dead draw.');
+
+    const actualState = 'JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])';
+    const beforeResignation = game.evaluate(actualState);
+    assert.equal(game.evaluate('resign()'), true);
+    assert.equal(game.evaluate('turn.textContent'), 'Draw on resignation: the opponent cannot checkmate.');
+    assert.equal(game.evaluate(actualState), beforeResignation, 'The hypothetical winning move must not be played when resignation is a draw.');
+    assert.equal(game.elements.get('board').children.filter(square => !square.disabled).length, 0);
+    assert.equal(game.evaluate('resignButton.hidden && claimDrawButton.hidden && claimRepetitionButton.hidden'), true);
+    assert.equal(game.evaluate('document.activeElement === turn'), true);
+    game.evaluate('renderBoard();');
+    assert.equal(game.evaluate('turn.textContent'), 'Draw on resignation: the opponent cannot checkmate.');
+}
+console.log('PASS: side-specific forced-mate impossibility for both colors gives a resignation draw without an automatic dead draw.');
+
+const afterForcedMate = harness(forcedWinningMove);
+afterForcedMate.evaluate(`
+    movePieceOnBoard(currentPosition, 6, 1, 6, 0, 'R'); currentPlayer = 'black';
+`);
+assert.equal(afterForcedMate.moves().length, 0);
+assert.notEqual(afterForcedMate.evaluate('findCheckedKing(currentPosition, currentPlayer)'), null);
+prove(afterForcedMate, false, 0, 1);
+proveCannotMate(afterForcedMate, 'black', true, 0, 1);
+proveCannotMate(afterForcedMate, 'white', false, 0, 1);
+const afterReflectedMate = harness(reflectedWinningMove, 'black');
+afterReflectedMate.evaluate(`
+    movePieceOnBoard(currentPosition, 1, 1, 1, 0, 'r'); currentPlayer = 'white';
+`);
+assert.equal(afterReflectedMate.moves().length, 0);
+proveCannotMate(afterReflectedMate, 'white', true, 0, 1);
+proveCannotMate(afterReflectedMate, 'black', false, 0, 1);
+console.log('PASS: terminal mate distinguishes the side that achieved mate from the side that can no longer mate.');
+
+const sideSpecificState = harness(forcedWinningMove);
+sideSpecificState.evaluate(`
+    timeControl.value = '180+2'; startChessClock();
+    selectedSquare = document.createElement('button'); selectedSquare.dataset.position = 'b2';
+    halfmoveClock = 73; movesPlayed = 20;
+    positionOccurrences.set('historical-target-position', 2);
+    drawOfferQueued = true;
+`);
+proveCannotMate(sideSpecificState, 'black', true);
+proveCannotMate(sideSpecificState, 'white', false);
+proveCannotMate(epEscape, 'black', false);
+proveCannotMate(epEscape, 'white', false);
+for (const target of ['red', '', null, 0, {}, []]) proveCannotMate(sideSpecificState, target, false);
+for (const limit of [-1, 1.5, 9, '8', null]) proveCannotMate(sideSpecificState, 'black', false, limit);
+for (const nodes of [0, -1, 1.5, 65, '64', null]) proveCannotMate(sideSpecificState, 'black', false, 8, nodes);
+console.log('PASS: side-specific search preserves live references, clocks and history and rejects invalid targets or limits.');
+
+// Material can permit mate even when it cannot force one against best defense.
+const cooperativeMaterial = harness({ a1: 'K', h8: 'k', g6: 'n', b2: 'P' });
+assert.equal(cooperativeMaterial.evaluate('cannotMateByMaterial(currentPosition, "black")'), false);
+proveCannotMate(cooperativeMaterial, 'black', false);
+cooperativeMaterial.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(cooperativeMaterial.evaluate('resign()'), true);
+assert.equal(cooperativeMaterial.evaluate('turn.textContent'), 'White resigns. Black wins.',
+    'A possibly mating or unproved continuation must keep resignation as a loss.');
+const ordinaryResignation = harness({ e1: 'K', d1: 'Q', e8: 'k', d8: 'q' });
+proveCannotMate(ordinaryResignation, 'black', false);
+ordinaryResignation.evaluate('renderBoard();');
+assert.equal(ordinaryResignation.evaluate('resign()'), true);
+assert.equal(ordinaryResignation.evaluate('turn.textContent'), 'White resigns. Black wins.');
+const materialException = harness({ a1: 'K', b2: 'Q', h8: 'k' });
+proveCannotMate(materialException, 'black', true, 0, 1);
+proveCannotMate(materialException, 'white', false, 0, 1);
+console.log('PASS: cooperation and uncertain branches remain losses on resignation while existing material exceptions remain draws.');
