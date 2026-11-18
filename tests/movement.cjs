@@ -8,10 +8,14 @@ const source = fs.readFileSync(sourcePath, 'utf8');
 
 // Rendering is exercised separately in a browser; these tests need only a minimal DOM.
 function createElement() {
+    const listeners = {};
     return {
         dataset: {},
         classList: { add() {}, remove() {} },
-        addEventListener() {},
+        addEventListener(type, callback) { listeners[type] = callback; },
+        dispatch(type) { listeners[type]?.(); },
+        showModal() { this.open = true; },
+        close(value) { this.open = false; this.returnValue = value; listeners.close?.(); },
         setAttribute() {},
         appendChild() {},
         replaceChildren() {},
@@ -460,3 +464,75 @@ for (const [pieces, description] of [
 }
 
 console.log('PASS: automatic insufficient-material draws and positions that must remain in play.');
+
+// Exercise actual promotion moves, including captures and all underpromotions.
+for (const player of ['white', 'black']) {
+    for (const choice of ['q', 'r', 'b', 'n']) {
+        vm.runInContext('declaredResult = null; halfmoveClock = 0; positionOccurrences.clear();', context);
+        setPosition(player === 'white'
+            ? { a1: 'K', b7: 'P', c8: 'r', h6: 'k', h7: 'p' }
+            : { a3: 'K', b2: 'p', c1: 'R', h8: 'k', a2: 'P' });
+        turnMessage(player);
+        assert.equal(playMove(player === 'white' ? 'b7' : 'b2', player === 'white' ? 'c8' : 'c1', choice), true);
+        assert.equal(vm.runInContext(`currentPosition[${player === 'white' ? 0 : 7}][2]`, context),
+            player === 'white' ? choice.toUpperCase() : choice);
+        assert.equal(vm.runInContext('halfmoveClock', context), 0);
+    }
+}
+console.log('PASS: capture promotions to queen, rook, bishop and knight for both colors.');
+
+function prepareResignation(pieces, player = 'white') {
+    vm.runInContext(`
+        declaredResult = null; halfmoveClock = 0; positionOccurrences.clear();
+        pendingPromotion = null; pendingDrawClaim = null; pendingResignation = false;
+    `, context);
+    setPosition(pieces);
+    turnMessage(player);
+}
+
+for (const player of ['white', 'black']) {
+    prepareResignation({ e1: 'K', d1: 'Q', e8: 'k', d8: 'q' }, player);
+    const beforeResignation = vm.runInContext(repetitionSnapshot, context);
+    vm.runInContext('resignButton.dispatch("click")', context);
+    assert.equal(vm.runInContext('resignationDialog.open', context), true);
+    assert.equal(playMove(player === 'white' ? 'd1' : 'd8', player === 'white' ? 'd2' : 'd7'), false);
+    assert.equal(vm.runInContext('toggleDrawOffer()', context), false);
+    assert.equal(vm.runInContext('resign()', context), false, 'Confirmation must precede resignation.');
+    vm.runInContext('resignationDialog.close("cancel")', context);
+    assert.equal(vm.runInContext(repetitionSnapshot, context), beforeResignation);
+    assert.equal(vm.runInContext('gameResult', context), null);
+    // Escape closes a dialog without a confirmation value.
+    vm.runInContext('resignButton.dispatch("click"); resignationDialog.close("");', context);
+    assert.equal(vm.runInContext('gameResult', context), null);
+    vm.runInContext('resignButton.dispatch("click"); resignationDialog.close("resign");', context);
+    const expected = player === 'white' ? 'White resigns. Black wins.' : 'Black resigns. White wins.';
+    assert.equal(turnMessage(player), expected);
+    assert.equal(vm.runInContext(repetitionSnapshot, context), beforeResignation);
+    assert.equal(vm.runInContext('resignButton.hidden', context), true);
+    assert.equal(vm.runInContext('resign()', context), false);
+}
+
+for (const [pieces, player, drawn] of [
+    [{ a1: 'K', b2: 'Q', h8: 'k' }, 'white', true],
+    [{ a1: 'K', h8: 'k', g6: 'n', b2: 'Q' }, 'white', true],
+    [{ a1: 'K', h8: 'k', f8: 'b', b2: 'Q' }, 'white', false],
+    [{ a1: 'K', h8: 'k', g6: 'n', b2: 'R' }, 'white', false],
+    [{ a1: 'K', h8: 'k', g6: 'n', b2: 'P' }, 'white', false],
+    [{ a1: 'K', h8: 'k', g6: 'n', f6: 'n' }, 'white', false],
+    [{ a1: 'K', b3: 'N', h8: 'k', g7: 'q' }, 'black', true]
+]) {
+    prepareResignation(pieces, player);
+    assert.equal(vm.runInContext('resign()', context), true);
+    assert.equal(vm.runInContext('gameResult.startsWith("Draw on resignation")', context), drawn);
+}
+
+prepareResignation({ a1: 'K', b2: 'Q', h8: 'k' });
+vm.runInContext('pendingPromotion = { row: 0, column: 1 };', context);
+assert.equal(vm.runInContext('resign()', context), false);
+vm.runInContext('pendingPromotion = null; pendingDrawClaim = "fifty";', context);
+assert.equal(vm.runInContext('resign()', context), false);
+vm.runInContext('pendingDrawClaim = null;', context);
+setPosition({ c6: 'K', b7: 'Q', a8: 'k' });
+turnMessage('black');
+assert.equal(vm.runInContext('resign()', context), false, 'A finished game cannot be resigned.');
+console.log('PASS: resignation confirmation, cancellation, state preservation, both colors, mating-material exceptions and finished-game guards.');

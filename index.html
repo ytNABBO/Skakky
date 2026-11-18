@@ -18,6 +18,14 @@
     <button id="decline-draw" class="game-button" type="button" hidden>Decline draw</button>
     <button id="claim-draw" class="game-button" type="button" hidden>Claim draw (50-move rule)</button>
     <button id="claim-repetition" class="game-button" type="button" hidden>Claim draw (threefold repetition)</button>
+    <button id="resign" class="game-button" type="button">Resign</button>
+    <dialog id="resignation" class="game-dialog" aria-labelledby="resignation-title">
+        <h2 id="resignation-title">Resign this game?</h2>
+        <form method="dialog">
+            <button value="cancel" autofocus>Keep playing</button>
+            <button value="resign">Resign</button>
+        </form>
+    </dialog>
     <dialog id="promotion" class="game-dialog" aria-labelledby="promotion-title">
         <h2 id="promotion-title">Promote pawn</h2>
         <form method="dialog">

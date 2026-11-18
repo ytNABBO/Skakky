@@ -11,6 +11,9 @@ const drawOfferMessage = document.getElementById("draw-offer-message");
 const offerDrawButton = document.getElementById("offer-draw");
 const acceptDrawButton = document.getElementById("accept-draw");
 const declineDrawButton = document.getElementById("decline-draw");
+const resignButton = document.getElementById("resign");
+const resignationDialog = document.getElementById("resignation");
+let pendingResignation = false;
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
@@ -453,6 +456,44 @@ function isDeadByMaterial(position) {
     return knightCount === 0 || (knightCount === 1 && bishopSquareColor === null);
 }
 
+// Material can prove mating impossible even when the other player can still mate.
+function cannotMateByMaterial(position, player) {
+    const own = [];
+    const opponent = [];
+    const bishops = [];
+    for (let row = 0; row < 8; row++) {
+        for (let column = 0; column < 8; column++) {
+            const piece = position[row][column];
+            if (piece === "" || piece.toLowerCase() === "k") continue;
+            const kind = piece.toLowerCase();
+            (getPieceColor(piece) === player ? own : opponent).push(kind);
+            if (kind === "b") bishops.push((row + column) % 2);
+        }
+    }
+    if (own.length === 0) return true;
+    if (own.length === 1 && own[0] === "n") {
+        // Enemy pawns and minor pieces can help form a mating net.
+        return opponent.every(kind => kind === "q");
+    }
+    return own.every(kind => kind === "b")
+        && opponent.every(kind => kind === "b")
+        && bishops.every(color => color === bishops[0]);
+}
+
+function resign() {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+        return false;
+    }
+    const opponent = currentPlayer === "white" ? "black" : "white";
+    const winner = opponent === "white" ? "White" : "Black";
+    declaredResult = cannotMateByMaterial(currentPosition, opponent)
+        ? "Draw on resignation: the opponent cannot checkmate."
+        : `${currentPlayer === "white" ? "White" : "Black"} resigns. ${winner} wins.`;
+    renderBoard();
+    turn.focus();
+    return true;
+}
+
 function serializePosition(position, player, rights, enPassantSquare) {
     return JSON.stringify([position, player, rights, enPassantSquare]);
 }
@@ -540,7 +581,7 @@ function getIntendedDrawClaimMoves(rule) {
 
 function claimDraw(rule, intendedMove = "") {
     if (!Object.hasOwn(drawClaimResults, rule)
-        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
+        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -583,7 +624,7 @@ function updateDrawOfferControls() {
 }
 
 function toggleDrawOffer() {
-    if (!canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null) {
+    if (!canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -593,7 +634,7 @@ function toggleDrawOffer() {
 }
 
 function respondToDrawOffer(accept) {
-    if (!hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null) {
+    if (!hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -630,7 +671,7 @@ function clearSelection() {
 }
 
 function selectPiece(square, piece, row, column) {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return;
     }
 
@@ -685,7 +726,7 @@ function selectPiece(square, piece, row, column) {
 }
 
 function movePiece(row, column, promotion = null) {
-    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null) {
+    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -799,6 +840,7 @@ function renderBoard() {
     claimRepetitionButton.hidden = gameResult !== null
         || (!canClaimDrawNow("threefold") && getIntendedDrawClaimMoves("threefold").length === 0);
     updateDrawOfferControls();
+    resignButton.hidden = gameResult !== null;
     clearSelection();
     board.replaceChildren();
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
@@ -889,7 +931,7 @@ promotionDialog.addEventListener("close", () => {
 });
 
 function openDrawClaim(rule) {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null) {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return;
     }
     if (canClaimDrawNow(rule)) {
@@ -930,6 +972,23 @@ drawClaimDialog.addEventListener("close", () => {
     pendingDrawClaim = null;
     if (rule !== null && drawClaimDialog.returnValue === "claim") {
         claimDraw(rule, drawClaimMove.value);
+    }
+});
+
+resignButton.addEventListener("click", () => {
+    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) return;
+    pendingResignation = true;
+    resignationDialog.returnValue = "";
+    resignationDialog.showModal();
+});
+
+resignationDialog.addEventListener("close", () => {
+    const wasPending = pendingResignation;
+    pendingResignation = false;
+    if (wasPending && resignationDialog.returnValue === "resign") {
+        resign();
+    } else if (wasPending) {
+        resignButton.focus();
     }
 });
 
