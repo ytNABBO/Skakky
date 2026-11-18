@@ -245,7 +245,7 @@ for (const [pieces, drawn] of [
     assert.equal(game.result(), drawn ? 'Draw on time: the opponent cannot checkmate.' : 'White ran out of time. Black wins.');
 }
 
-for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
+for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();
     game.advance(500);
@@ -280,6 +280,16 @@ for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-
         assert.equal(game.get('resign').hidden, true);
         assert.equal(game.get('claim-draw').hidden, true);
         assert.equal(game.get('claim-repetition').hidden, true);
+    } else if (ending === 'knight-blockade') {
+        game.fixture({
+            e1: 'K', e8: 'k', a1: 'N',
+            a4: 'P', b2: 'P', c2: 'P', d3: 'P', e2: 'P', f3: 'P', g2: 'P', h3: 'P',
+            a5: 'p', b4: 'p', c3: 'p', d4: 'p', e3: 'p', f4: 'p', g3: 'p', h4: 'p'
+        });
+        game.move('b2', 'b3');
+        assert.equal(game.result(), 'Draw by dead position.');
+        assert.equal(game.remaining('white'), 179500, 'Confined knights must not prolong a dead game or grant increment.');
+        assert.equal(game.get('resign').hidden, true);
     } else if (ending === '75-move') {
         game.fixture({ a1: 'K', b2: 'R', h8: 'k', g7: 'r' });
         game.evaluate('halfmoveClock = 149;');

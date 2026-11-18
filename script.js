@@ -558,6 +558,7 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     const kings = { white: [], black: [] };
     const pawns = [];
     const bishops = [];
+    const knights = [];
     const pawnAttacks = { white: new Set(), black: new Set() };
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
@@ -570,6 +571,8 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
                 pawns.push({ row, column, player });
             } else if (piece.toLowerCase() === "b") {
                 bishops.push({ row, column, player });
+            } else if (piece.toLowerCase() === "n") {
+                knights.push({ row, column, player });
             } else {
                 return false;
             }
@@ -608,7 +611,7 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
                 const target = position[nextRow][nextColumn];
                 if (target === ownPawn) continue;
                 if (target === opponentPawn) return null;
-                // Ignore all mobile pieces, including bishops that might be captured later.
+                // Ignore all mobile pieces, including minor pieces that might be captured later.
                 visited.add(square);
                 queue.push([nextRow, nextColumn]);
             }
@@ -639,7 +642,7 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
                         break;
                     }
                     const destination = nextRow * 8 + nextColumn;
-                    // Kings and other bishops never restrict this deliberately larger region.
+                    // Other mobile pieces never restrict this deliberately larger region.
                     if (!visited.has(destination)) {
                         visited.add(destination);
                         queue.push([nextRow, nextColumn]);
@@ -651,7 +654,35 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
         }
     }
 
-    // Pawns stay frozen and bishops cannot reach a checking square, even after captures.
+    for (const knight of knights) {
+        const opponent = knight.player === "white" ? "black" : "white";
+        const queue = [[knight.row, knight.column]];
+        const visited = new Set([knight.row * 8 + knight.column]);
+        for (let index = 0; index < queue.length; index++) {
+            const [row, column] = queue[index];
+            if (pawnAttacks[opponent].has(row * 8 + column)) return false;
+            for (const [dr, dc] of knightOffsets) {
+                const nextRow = row + dr;
+                const nextColumn = column + dc;
+                if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) continue;
+                const destination = nextRow * 8 + nextColumn;
+                // A knight attacks its landing squares, even when they are not reachable moves.
+                if (kingRegions[opponent].has(destination)) return false;
+                const target = position[nextRow][nextColumn];
+                if (target.toLowerCase() === "p") {
+                    if (getPieceColor(target) === opponent) return false;
+                    continue;
+                }
+                // Jumps ignore all mobile blockers, including pieces that could be sacrificed.
+                if (!visited.has(destination)) {
+                    visited.add(destination);
+                    queue.push([nextRow, nextColumn]);
+                }
+            }
+        }
+    }
+
+    // Pawns stay frozen and no minor piece can ever give check, even after captures.
     return true;
 }
 
