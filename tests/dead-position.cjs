@@ -373,6 +373,20 @@ for (const [fixture, reason] of [
 assert.equal(isDead(knightBlockade, { pawnRow: 4, column: 1, targetRow: 5 }), false);
 console.log('PASS: trapped knights, symmetries, multiple knights, mixed bishops and knight jump/capture/check boundaries.');
 
+const rookPawnCapture = { ...blockade, a1: 'R' };
+assert.equal(isDead(rookPawnCapture), false,
+    'The rook can be offered on b3, allowing a4xb3 to break the pawn blockade.');
+context.fixture = position(rookPawnCapture);
+evaluate(`
+    fixture.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+    currentPlayer = 'white'; enPassant = null;
+`);
+evaluate('movePieceOnBoard(currentPosition, 7, 0, 7, 1, "R");');
+evaluate('movePieceOnBoard(currentPosition, 7, 1, 5, 1, "R"); currentPlayer = "black";');
+assert(evaluate('getLegalMoveOptions(4, 0).captures.includes("b3")'),
+    'The black a4-pawn must have a legal capture that opens the blockade.');
+console.log('PASS: a rook sacrifice onto a pawn-capture square keeps the blockade playable.');
+
 // Independently explore kings and a knight with every jump explicitly considered.
 // The reference uses no production movement, attack or reachability helpers.
 function verifyKnightReachablePositions(pieces) {
