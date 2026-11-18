@@ -37,6 +37,11 @@
     <dialog id="resignation" class="game-dialog" aria-labelledby="resignation-title">
         <h2 id="resignation-title">Resign this game?</h2>
         <form method="dialog">
+            <label for="resigning-player">Resigning player</label>
+            <select id="resigning-player" required>
+                <option value="white">White</option>
+                <option value="black">Black</option>
+            </select>
             <button value="cancel" autofocus>Keep playing</button>
             <button value="resign">Resign</button>
         </form>

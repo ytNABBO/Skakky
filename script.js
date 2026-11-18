@@ -13,6 +13,7 @@ const acceptDrawButton = document.getElementById("accept-draw");
 const declineDrawButton = document.getElementById("decline-draw");
 const resignButton = document.getElementById("resign");
 const resignationDialog = document.getElementById("resignation");
+const resigningPlayerSelect = document.getElementById("resigning-player");
 const timeControl = document.getElementById("time-control");
 const startClockButton = document.getElementById("start-clock");
 const clockPanel = document.getElementById("clock-panel");
@@ -827,15 +828,16 @@ function cannotMateByMaterial(position, player) {
         && bishops.every(color => color === bishops[0]);
 }
 
-function resign() {
-    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+function resign(player = currentPlayer) {
+    if ((player !== "white" && player !== "black") || !syncChessClock()
+        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
-    const opponent = currentPlayer === "white" ? "black" : "white";
+    const opponent = player === "white" ? "black" : "white";
     const winner = opponent === "white" ? "White" : "Black";
     declaredResult = cannotMateByContinuation(opponent)
         ? "Draw on resignation: the opponent cannot checkmate."
-        : `${currentPlayer === "white" ? "White" : "Black"} resigns. ${winner} wins.`;
+        : `${player === "white" ? "White" : "Black"} resigns. ${winner} wins.`;
     renderBoard();
     turn.focus();
     return true;
@@ -1333,6 +1335,7 @@ drawClaimDialog.addEventListener("close", () => {
 resignButton.addEventListener("click", () => {
     if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) return;
     pendingResignation = true;
+    resigningPlayerSelect.value = currentPlayer;
     resignationDialog.returnValue = "";
     resignationDialog.showModal();
 });
@@ -1341,7 +1344,7 @@ resignationDialog.addEventListener("close", () => {
     const wasPending = pendingResignation;
     pendingResignation = false;
     if (wasPending && resignationDialog.returnValue === "resign") {
-        resign();
+        if (!resign(resigningPlayerSelect.value) && gameResult === null) resignButton.focus();
     } else if (wasPending) {
         resignButton.focus();
     }

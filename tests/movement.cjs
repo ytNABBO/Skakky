@@ -536,3 +536,93 @@ setPosition({ c6: 'K', b7: 'Q', a8: 'k' });
 turnMessage('black');
 assert.equal(vm.runInContext('resign()', context), false, 'A finished game cannot be resigned.');
 console.log('PASS: resignation confirmation, cancellation, state preservation, both colors, mating-material exceptions and finished-game guards.');
+
+const resignationPositionState = 'JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])';
+const ordinaryResignationPosition = { e1: 'K', d1: 'Q', e8: 'k', d8: 'q' };
+for (const [activePlayer, resigningPlayer, expectedResult] of [
+    ['white', 'black', 'Black resigns. White wins.'],
+    ['black', 'white', 'White resigns. Black wins.']
+]) {
+    prepareResignation(ordinaryResignationPosition, activePlayer);
+    vm.runInContext(`
+        halfmoveClock = 27; movesPlayed = 14;
+        positionOccurrences.set('off-turn-history', 2);
+        castlingRights.white.kingside = true;
+        castlingRights.black.queenside = false;
+    `, context);
+    const before = vm.runInContext(resignationPositionState, context);
+    context.testResigningPlayer = resigningPlayer;
+    assert.equal(vm.runInContext('resign(testResigningPlayer)', context), true);
+    assert.equal(vm.runInContext('turn.textContent', context), expectedResult);
+    assert.equal(vm.runInContext(resignationPositionState, context), before,
+        'Off-turn resignation must preserve the real turn, board, rights, counters and history.');
+    assert.equal(vm.runInContext('resignButton.hidden', context), true);
+    assert.equal(vm.runInContext('resign(testResigningPlayer)', context), false,
+        'A finished game cannot accept another resignation from either player.');
+}
+
+prepareResignation(ordinaryResignationPosition);
+for (const player of [null, '', 'red', 'White', 0, false, {}, []]) {
+    context.testResigningPlayer = player;
+    const before = vm.runInContext(resignationPositionState, context);
+    assert.equal(vm.runInContext('resign(testResigningPlayer)', context), false,
+        'Only the two player colors may be selected for resignation.');
+    assert.equal(vm.runInContext('gameResult', context), null);
+    assert.equal(vm.runInContext(resignationPositionState, context), before);
+}
+console.log('PASS: either player can resign off turn; invalid players and finished games are rejected without changing game state.');
+
+prepareResignation({ a1: 'K', h8: 'k', g7: 'q' }, 'white');
+const beforeBareKingResignation = vm.runInContext(resignationPositionState, context);
+assert.equal(vm.runInContext('resign("black")', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Draw on resignation: the opponent cannot checkmate.',
+    'The bare White king cannot win when Black resigns during White\'s turn.');
+assert.equal(vm.runInContext(resignationPositionState, context), beforeBareKingResignation);
+
+prepareResignation({ a1: 'K', b2: 'R', c5: 'N', d3: 'N', a3: 'k', a2: 'r', d2: 'n' }, 'white');
+assert.equal(vm.runInContext('gameResult', context), null);
+assert.equal(vm.runInContext('cannotMateByContinuation("white")', context), false);
+assert.equal(vm.runInContext('cannotMateByContinuation("black")', context), true);
+const beforeForcedMateResignation = vm.runInContext(resignationPositionState, context);
+assert.equal(vm.runInContext('resign("black")', context), true);
+assert.equal(vm.runInContext('turn.textContent', context), 'Black resigns. White wins.',
+    'Off-turn resignation must test the actual opponent from the unchanged side to move.');
+assert.equal(vm.runInContext(resignationPositionState, context), beforeForcedMateResignation,
+    'The hypothetical Rxa2 checkmate must not be played to determine the result.');
+console.log('PASS: off-turn resignation checks the correct opponent and uses the real turn for impossible-mate analysis.');
+
+for (const activePlayer of ['white', 'black']) {
+    const resigningPlayer = activePlayer === 'white' ? 'black' : 'white';
+    prepareResignation(ordinaryResignationPosition, activePlayer);
+    const before = vm.runInContext(resignationPositionState, context);
+    context.testResigningPlayer = resigningPlayer;
+    vm.runInContext('resignButton.dispatch("click")', context);
+    assert.equal(vm.runInContext('resignationDialog.open', context), true);
+    assert.equal(vm.runInContext('resigningPlayerSelect.value', context), activePlayer,
+        'Every resignation dialog opening must default to the player whose turn it is.');
+    vm.runInContext('resigningPlayerSelect.value = testResigningPlayer;', context);
+    assert.equal(vm.runInContext('resign(testResigningPlayer)', context), false,
+        'Choosing the other side must not bypass the pending confirmation.');
+    vm.runInContext('resignationDialog.close("cancel")', context);
+    assert.equal(vm.runInContext('gameResult', context), null);
+    assert.equal(vm.runInContext(resignationPositionState, context), before);
+
+    vm.runInContext('resignButton.dispatch("click")', context);
+    assert.equal(vm.runInContext('resigningPlayerSelect.value', context), activePlayer,
+        'Cancelling must not carry a previous side choice into the next dialog.');
+    vm.runInContext('resigningPlayerSelect.value = testResigningPlayer; resignationDialog.close("");', context);
+    assert.equal(vm.runInContext('gameResult', context), null, 'Escape must leave the game active.');
+    assert.equal(vm.runInContext(resignationPositionState, context), before);
+
+    vm.runInContext('resignButton.dispatch("click")', context);
+    assert.equal(vm.runInContext('resigningPlayerSelect.value', context), activePlayer);
+    vm.runInContext('resigningPlayerSelect.value = testResigningPlayer; resignationDialog.close("resign");', context);
+    assert.equal(vm.runInContext('turn.textContent', context),
+        activePlayer === 'white' ? 'Black resigns. White wins.' : 'White resigns. Black wins.');
+    assert.equal(vm.runInContext(resignationPositionState, context), before);
+    assert.equal(vm.runInContext('resignationDialog.open', context), false);
+    vm.runInContext('resignButton.dispatch("click")', context);
+    assert.equal(vm.runInContext('resignationDialog.open', context), false,
+        'The resignation dialog must not reopen after the game ends.');
+}
+console.log('PASS: resignation side selection, confirmation, cancellation, Escape, reopening defaults and finished-game dialog guards.');

@@ -271,6 +271,51 @@ for (const [player, pieces] of [['white', forcedWinningPosition], ['black', refl
 }
 console.log('PASS: both-color timeout draws when the opponent cannot mate through any legal continuation, with pending-dialog cleanup.');
 
+for (const player of ['white', 'black']) {
+    const game = harness();
+    game.start('300+0');
+    if (player === 'black') game.move('e2', 'e4');
+    const other = player === 'white' ? 'black' : 'white';
+    const actualState = 'JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])';
+    const before = game.evaluate(actualState);
+    game.get('resign').click();
+    assert.equal(game.get('resigning-player').value, player);
+    game.get('resigning-player').value = other;
+    game.advance(1200);
+    assert.equal(game.active(), player, 'Choosing another resigning player must not switch clocks.');
+    assert.equal(game.remaining(player), 298800);
+    assert.equal(game.remaining(other), 300000);
+    game.get('resignation').close('cancel');
+    assert.equal(game.evaluate(actualState), before);
+    game.get('resign').click();
+    assert.equal(game.get('resigning-player').value, player, 'Reopening resets the choice to the player to move.');
+    game.get('resigning-player').value = other;
+    game.advance(800, false);
+    game.get('resignation').close('resign');
+    assert.equal(game.result(), other === 'white' ? 'White resigns. Black wins.' : 'Black resigns. White wins.');
+    assert.equal(game.evaluate(actualState), before, 'Resigning out of turn leaves the real turn and position unchanged.');
+    assert.equal(game.remaining(player), 298000, 'Confirmation settles only the active player clock.');
+    assert.equal(game.remaining(other), 300000);
+    assert.equal(game.active(), null);
+    assert.equal(game.timers(), 0);
+}
+
+{
+    const game = harness();
+    game.start('300+0');
+    game.get('resign').click();
+    game.get('resigning-player').value = 'black';
+    game.advance(300000, false);
+    game.get('resignation').close('resign');
+    assert.equal(game.result(), 'White ran out of time. Black wins.',
+        'An expired active clock takes precedence over a late resignation by the waiting player.');
+    assert.equal(game.active(), null);
+    assert.equal(game.timers(), 0);
+    game.get('resignation').close('resign');
+    assert.equal(game.result(), 'White ran out of time. Black wins.');
+}
+console.log('PASS: either player can resign without changing the running clock; cancellation and timeout precedence remain correct.');
+
 for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', 'forced-line', 'branching-line', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();
