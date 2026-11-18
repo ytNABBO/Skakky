@@ -9,7 +9,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - Automatic draws, draw claims, draw offers and resignation.
-- Dead-position draws for proven pawn blockades, including confined bishops and knights.
+- Dead-position draws for proven pawn blockades and forced continuations.
 - Optional chess clocks with Fischer increments and time-forfeit results.
 - Responsive board with keyboard support.
 
@@ -23,7 +23,7 @@ The clock continues while selecting a promotion, confirming resignation or prepa
 
 ## Tests
 
-Run `node tests/movement.cjs`, `node tests/clock.cjs` and `node tests/dead-position.cjs` with Node.js. No extra packages are required.
+Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position.cjs` and `node tests/forced-dead.cjs` with Node.js. No extra packages are required.
 
 ## Project files
 
@@ -33,6 +33,7 @@ Run `node tests/movement.cjs`, `node tests/clock.cjs` and `node tests/dead-posit
 - `tests/movement.cjs` — movement and game-rule tests.
 - `tests/clock.cjs` — deterministic clock and timed-game tests.
 - `tests/dead-position.cjs` — pawn, bishop and knight blockade proofs and dead-position tests.
+- `tests/forced-dead.cjs` — forced continuations, search limits and analysis state preservation.
 
 ## Development workflow
 
@@ -48,10 +49,12 @@ Automatic dead-position draws also cover kings-and-pawns positions where every p
 
 The same proof can include bishops confined by the pawn structure. A bishop must never be able to capture a pawn, be captured by a pawn or reach any square where it could check the enemy king. Knights are checked through every possible jump and attack square, including jumps over the wall. A knight that might free a pawn or ever check the enemy king prevents a draw. The proof also considers routes that could open after a bishop or knight is captured.
 
-Detection is conservative: a possible en passant capture, a rook or queen, an accessible pawn or a bishop or knight that might give check prevents this rule from declaring a draw.
+The blockade proof is conservative: a possible en passant capture, a rook or queen, an accessible pawn or a bishop or knight that might give check prevents that proof from declaring a draw.
+
+A separate proof follows positions with exactly one legal complete move for up to eight half-moves. If the forced continuation reaches a known dead position, stalemate or a repeated position, the game ends immediately in the original position. Simulated moves are never played. For example, if the only reply to a check would capture the last mating piece and leave a king and bishop against a king, the draw is declared before that capture. A branch, promotion choices or the search limit without a proof keeps play active.
 
 Remaining work:
 
-- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, bishop and knight fortresses that permit checks and positions requiring forced-move analysis. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
+- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, fortresses that permit checks, branching continuations and forced lines longer than eight half-moves. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
 
 Piece selection and cancellable move dialogs are interface conveniences; physical touch-move rules, arbiter penalties and tournament-specific draw restrictions are not enforced.

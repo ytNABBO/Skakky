@@ -47,6 +47,7 @@ const claimHalfmoveLimit = 100; // 50 moves by each player.
 const drawHalfmoveLimit = 150; // 75 moves by each player.
 const claimRepetitionLimit = 3;
 const drawRepetitionLimit = 5;
+const forcedDeadPlyLimit = 8;
 const positionOccurrences = new Map();
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
@@ -700,6 +701,67 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     return true;
 }
 
+// Follow unique legal replies without playing them or changing the live game.
+function isDeadByForcedLine(maxPlies = forcedDeadPlyLimit) {
+    if (!Number.isInteger(maxPlies) || maxPlies < 0 || maxPlies > forcedDeadPlyLimit) return false;
+    const pieces = currentPosition.flat();
+    if (pieces.filter(piece => piece === "K").length !== 1
+        || pieces.filter(piece => piece === "k").length !== 1) return false;
+    const savedPosition = currentPosition.map(rank => rank.slice());
+    const savedPlayer = currentPlayer;
+    const savedEnPassant = enPassant;
+    const savedRights = { white: { ...castlingRights.white }, black: { ...castlingRights.black } };
+    const seen = new Set();
+
+    try {
+        for (let depth = 0; depth <= maxPlies; depth++) {
+            const replies = [];
+            search: for (let row = 0; row < 8; row++) {
+                for (let column = 0; column < 8; column++) {
+                    const piece = currentPosition[row][column];
+                    if (piece === "" || getPieceColor(piece) !== currentPlayer) continue;
+                    const { moves, captures } = getLegalMoveOptions(row, column);
+                    for (const destination of [...moves, ...captures]) {
+                        const toRow = 8 - Number(destination[1]);
+                        const toColumn = files.indexOf(destination[0]);
+                        const promotes = piece.toLowerCase() === "p" && (toRow === 0 || toRow === 7);
+                        for (const promotion of promotes ? promotionChoices : [null]) {
+                            replies.push({ row, column, toRow, toColumn, promotion });
+                            // Two complete moves are enough to establish that the line branches.
+                            if (replies.length === 2) break search;
+                        }
+                    }
+                }
+            }
+            if (replies.length === 0) return findCheckedKing(currentPosition, currentPlayer) === null;
+            if (isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
+            if (replies.length > 1) return false;
+            const key = serializePosition(currentPosition, currentPlayer, castlingRights, enPassant);
+            if (seen.has(key)) return true;
+            if (depth === maxPlies) return false;
+            seen.add(key);
+
+            const { row, column, toRow, toColumn, promotion } = replies[0];
+            const piece = currentPosition[row][column];
+            const placedPiece = promotion === null ? piece
+                : currentPlayer === "white" ? promotion.toUpperCase() : promotion;
+            const { capturedPiece } = movePieceOnBoard(currentPosition, row, column, toRow, toColumn, placedPiece);
+            updateMovingCastlingRights(castlingRights, piece, row, column);
+            revokeRookCastlingRight(castlingRights, capturedPiece, toRow, toColumn);
+            enPassant = piece.toLowerCase() === "p" && Math.abs(toRow - row) === 2
+                ? { pawnRow: toRow, column: toColumn, targetRow: (row + toRow) / 2 } : null;
+            currentPlayer = currentPlayer === "white" ? "black" : "white";
+        }
+        return false;
+    } finally {
+        savedPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+        currentPlayer = savedPlayer;
+        enPassant = savedEnPassant;
+        Object.assign(castlingRights.white, savedRights.white);
+        Object.assign(castlingRights.black, savedRights.black);
+    }
+}
+
 // Material can prove mating impossible even when the other player can still mate.
 function cannotMateByMaterial(position, player) {
     const own = [];
@@ -1072,6 +1134,8 @@ function renderBoard() {
     } else if (isDeadByMaterial(currentPosition)) {
         gameResult = "Draw by insufficient material.";
     } else if (isDeadByPawnBlockade(currentPosition, enPassant)) {
+        gameResult = "Draw by dead position.";
+    } else if (isDeadByForcedLine()) {
         gameResult = "Draw by dead position.";
     } else if (halfmoveClock >= drawHalfmoveLimit) {
         gameResult = "Draw by the 75-move rule.";

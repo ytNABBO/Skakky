@@ -245,7 +245,7 @@ for (const [pieces, drawn] of [
     assert.equal(game.result(), drawn ? 'Draw on time: the opponent cannot checkmate.' : 'White ran out of time. Black wins.');
 }
 
-for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
+for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', 'forced-line', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();
     game.advance(500);
@@ -302,6 +302,19 @@ for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-
         assert.equal(game.result(), 'Draw by dead position.');
         assert.equal(game.remaining('black'), 179500, 'An unusable en passant marker must not delay the draw or grant increment.');
         assert.equal(game.get('resign').hidden, true);
+    } else if (ending === 'forced-line') {
+        game.move('e2', 'e4');
+        game.fixture({ a1: 'K', h6: 'B', c2: 'k', b2: 'r' }, 'black');
+        game.advance(500);
+        game.get('offer-draw').click();
+        game.move('b2', 'a2');
+        assert.equal(game.result(), 'Draw by dead position.');
+        assert.equal(game.remaining('black'), 179500, 'A proved forced continuation stops clocks before any simulated capture.');
+        assert.equal(game.square('a1').dataset.piece, 'K');
+        assert.equal(game.square('a2').dataset.piece, 'r', 'The forced capture must not actually be played.');
+        assert.equal(game.evaluate('halfmoveClock'), 1, 'The analysis must not reset the real quiet-move count.');
+        assert.equal(game.evaluate('positionOccurrences.size'), 2, 'Simulated positions must not enter repetition history.');
+        assert.equal(game.get('accept-draw').hidden, true);
     } else if (ending === '75-move') {
         game.fixture({ a1: 'K', b2: 'R', h8: 'k', g7: 'r' });
         game.evaluate('halfmoveClock = 149;');
