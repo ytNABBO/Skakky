@@ -551,12 +551,13 @@ function isDeadByMaterial(position) {
     return knightCount === 0 || (knightCount === 1 && bishopSquareColor === null);
 }
 
-// Prove a locked pawn position dead only when neither king can ever break it.
+// Prove a pawn blockade dead when no piece can break it or ever give check.
 function isDeadByPawnBlockade(position, enPassantState = null) {
     // A recent double step may still allow the blockade to be opened en passant.
     if (enPassantState !== null) return false;
     const kings = { white: [], black: [] };
     const pawns = [];
+    const bishops = [];
     const pawnAttacks = { white: new Set(), black: new Set() };
     for (let row = 0; row < 8; row++) {
         for (let column = 0; column < 8; column++) {
@@ -567,6 +568,8 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
                 kings[player].push([row, column]);
             } else if (piece.toLowerCase() === "p" && row > 0 && row < 7) {
                 pawns.push({ row, column, player });
+            } else if (piece.toLowerCase() === "b") {
+                bishops.push({ row, column, player });
             } else {
                 return false;
             }
@@ -588,7 +591,7 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
         }
     }
 
-    function kingCanReachPawn(player) {
+    function getKingRegion(player) {
         const opponent = player === "white" ? "black" : "white";
         const opponentPawn = player === "white" ? "p" : "P";
         const ownPawn = player === "white" ? "P" : "p";
@@ -604,17 +607,52 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
                     || visited.has(square) || pawnAttacks[opponent].has(square)) continue;
                 const target = position[nextRow][nextColumn];
                 if (target === ownPawn) continue;
-                if (target === opponentPawn) return true;
-                // Ignoring the other king permits extra paths: uncertainty keeps play active.
+                if (target === opponentPawn) return null;
+                // Ignore all mobile pieces, including bishops that might be captured later.
                 visited.add(square);
                 queue.push([nextRow, nextColumn]);
             }
         }
-        return false;
+        return visited;
     }
 
-    // Without a first pawn capture, no pawn can move or create a new check.
-    return !kingCanReachPawn("white") && !kingCanReachPawn("black");
+    const kingRegions = { white: getKingRegion("white"), black: getKingRegion("black") };
+    if (kingRegions.white === null || kingRegions.black === null) return false;
+
+    for (const bishop of bishops) {
+        const opponent = bishop.player === "white" ? "black" : "white";
+        const queue = [[bishop.row, bishop.column]];
+        const visited = new Set([bishop.row * 8 + bishop.column]);
+        const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+        for (let index = 0; index < queue.length; index++) {
+            const [row, column] = queue[index];
+            const square = row * 8 + column;
+            // Even a sacrificial pawn capture or a possible future check defeats this proof.
+            if (pawnAttacks[opponent].has(square) || kingRegions[opponent].has(square)) return false;
+            for (const [dr, dc] of directions) {
+                let nextRow = row + dr;
+                let nextColumn = column + dc;
+                while (nextRow >= 0 && nextRow < 8 && nextColumn >= 0 && nextColumn < 8) {
+                    const target = position[nextRow][nextColumn];
+                    if (target.toLowerCase() === "p") {
+                        if (getPieceColor(target) === opponent) return false;
+                        break;
+                    }
+                    const destination = nextRow * 8 + nextColumn;
+                    // Kings and other bishops never restrict this deliberately larger region.
+                    if (!visited.has(destination)) {
+                        visited.add(destination);
+                        queue.push([nextRow, nextColumn]);
+                    }
+                    nextRow += dr;
+                    nextColumn += dc;
+                }
+            }
+        }
+    }
+
+    // Pawns stay frozen and bishops cannot reach a checking square, even after captures.
+    return true;
 }
 
 // Material can prove mating impossible even when the other player can still mate.

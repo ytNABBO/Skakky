@@ -9,7 +9,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - Automatic draws, draw claims, draw offers and resignation.
-- Dead-position draws for proven pawn blockades.
+- Dead-position draws for proven pawn blockades, including confined bishops.
 - Optional chess clocks with Fischer increments and time-forfeit results.
 - Responsive board with keyboard support.
 
@@ -32,7 +32,7 @@ Run `node tests/movement.cjs`, `node tests/clock.cjs` and `node tests/dead-posit
 - `script.js` — chess rules and gameplay.
 - `tests/movement.cjs` — movement and game-rule tests.
 - `tests/clock.cjs` — deterministic clock and timed-game tests.
-- `tests/dead-position.cjs` — pawn-blockade proofs and dead-position tests.
+- `tests/dead-position.cjs` — pawn and bishop blockade proofs and dead-position tests.
 
 ## Development workflow
 
@@ -44,10 +44,14 @@ Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/cha
 
 Resignation requires confirmation; cancellation or Escape keeps the game active. Under Article 5.1.2, resignation is a draw when the opponent cannot checkmate. Material checks cover a bare king, a lone knight against only a king or a king and queens, and positions containing only kings and bishops on one square color. Two knights can give mate with cooperation and do not automatically imply a draw.
 
-Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move. Detection is conservative: a possible en passant capture, another piece or a route to a capturable pawn prevents this rule from declaring a draw.
+Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move.
+
+The same proof can include bishops confined by the pawn structure. A bishop must never be able to capture a pawn, be captured by a pawn or reach any square where it could check the enemy king. The proof also considers routes that could open after a bishop is captured.
+
+Detection is conservative: a possible en passant capture, a rook, knight or queen, an accessible pawn or a bishop that might give check prevents this rule from declaring a draw.
 
 Remaining work:
 
-- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with other pieces and positions requiring forced-move analysis. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
+- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks, knights or queens, bishop fortresses that permit checks and positions requiring forced-move analysis. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
 
 Piece selection and cancellable move dialogs are interface conveniences; physical touch-move rules, arbiter penalties and tournament-specific draw restrictions are not enforced.

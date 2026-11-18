@@ -245,7 +245,7 @@ for (const [pieces, drawn] of [
     assert.equal(game.result(), drawn ? 'Draw on time: the opponent cannot checkmate.' : 'White ran out of time. Black wins.');
 }
 
-for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
+for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();
     game.advance(500);
@@ -262,8 +262,10 @@ for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', '75-move
         game.fixture({ a1: 'K', b2: 'B', c3: 'r', h8: 'k' });
         game.move('b2', 'c3');
         assert.equal(game.result(), 'Draw by insufficient material.');
-    } else if (ending === 'pawn-blockade') {
+    } else if (ending === 'pawn-blockade' || ending === 'bishop-blockade') {
+        const bishops = ending === 'bishop-blockade' ? { c1: 'B', c8: 'b' } : {};
         game.fixture({
+            ...bishops,
             e1: 'K', e8: 'k',
             a3: 'P', c3: 'P', e3: 'P', g3: 'P', b3: 'P', d4: 'P', f4: 'P', h4: 'P',
             a4: 'p', c4: 'p', e4: 'p', g4: 'p', b5: 'p', d5: 'p', f5: 'p', h5: 'p'
