@@ -196,3 +196,48 @@ button.square:focus-visible {
         transition: none;
     }
 }
+
+#clock-setup,
+#clock-panel {
+    box-sizing: border-box;
+    width: min(90vw, 480px);
+    margin: 16px auto;
+}
+
+#clock-setup select {
+    max-width: 100%;
+    padding: 8px;
+    font: inherit;
+}
+
+#clock-help {
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+#clock-panel:not([hidden]) {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clock {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #b58863;
+    border-radius: 6px;
+}
+
+.clock [role="timer"] {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.clock [data-running="true"] {
+    color: #f0d9b5;
+    font-weight: bold;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}

@@ -26,7 +26,7 @@ function createElement() {
 }
 
 const context = vm.createContext({
-    document: { getElementById: createElement, createElement }
+    document: { getElementById: createElement, createElement, addEventListener() {} }
 });
 vm.runInContext(source, context);
 assert.equal(vm.runInContext('positionOccurrences.get(getPositionKey())', context), 1,

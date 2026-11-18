@@ -13,6 +13,20 @@ const acceptDrawButton = document.getElementById("accept-draw");
 const declineDrawButton = document.getElementById("decline-draw");
 const resignButton = document.getElementById("resign");
 const resignationDialog = document.getElementById("resignation");
+const timeControl = document.getElementById("time-control");
+const startClockButton = document.getElementById("start-clock");
+const clockPanel = document.getElementById("clock-panel");
+const clockDisplays = {
+    white: document.getElementById("white-clock"),
+    black: document.getElementById("black-clock")
+};
+const timeControls = {
+    "180+2": { time: 180000, increment: 2000 },
+    "300+0": { time: 300000, increment: 0 },
+    "600+5": { time: 600000, increment: 5000 }
+};
+let chessClock = null;
+let clockTimer = null;
 let pendingResignation = false;
 let currentPlayer = "white";
 let selectedSquare = null;
@@ -83,6 +97,87 @@ const adjacentOffsets = [
     [0, -1], [0, 1],
     [1, -1], [1, 0], [1, 1]
 ];
+
+// Use elapsed time rather than interval counts, including after background-tab delays.
+function formatClockTime(milliseconds) {
+    const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function renderClocks() {
+    clockPanel.hidden = chessClock === null;
+    for (const player of ["white", "black"]) {
+        clockDisplays[player].textContent = chessClock === null
+            ? "--:--" : formatClockTime(chessClock.remaining[player]);
+        clockDisplays[player].dataset.running = String(chessClock?.activePlayer === player);
+    }
+    const locked = chessClock !== null || movesPlayed > 0 || gameResult !== null;
+    if (chessClock === null && locked) timeControl.value = "";
+    timeControl.disabled = locked;
+    startClockButton.disabled = locked || !Object.hasOwn(timeControls, timeControl.value);
+}
+
+function startChessClock() {
+    if (chessClock !== null || movesPlayed > 0 || gameResult !== null
+        || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation
+        || !Object.hasOwn(timeControls, timeControl.value)) {
+        return false;
+    }
+    const control = timeControls[timeControl.value];
+    chessClock = {
+        remaining: { white: control.time, black: control.time },
+        increment: control.increment,
+        activePlayer: "white",
+        lastTimestamp: performance.now()
+    };
+    clockTimer = setInterval(syncChessClock, 100);
+    renderClocks();
+    return true;
+}
+
+function stopChessClock() {
+    if (clockTimer !== null) {
+        clearInterval(clockTimer);
+        clockTimer = null;
+    }
+    if (chessClock !== null) chessClock.activePlayer = null;
+}
+
+function syncChessClock() {
+    if (chessClock === null || chessClock.activePlayer === null) return gameResult === null;
+    const now = performance.now();
+    const player = chessClock.activePlayer;
+    chessClock.remaining[player] = Math.max(0,
+        chessClock.remaining[player] - Math.max(0, now - chessClock.lastTimestamp));
+    chessClock.lastTimestamp = now;
+    if (chessClock.remaining[player] > 0) {
+        renderClocks();
+        return true;
+    }
+
+    const opponent = player === "white" ? "black" : "white";
+    declaredResult = cannotMateByMaterial(currentPosition, opponent)
+        ? "Draw on time: the opponent cannot checkmate."
+        : `${player === "white" ? "White" : "Black"} ran out of time. ${opponent === "white" ? "White" : "Black"} wins.`;
+    stopChessClock();
+    // Invalidate callbacks before closing dialogs, whose close events are deferred.
+    pendingPromotion = null;
+    pendingDrawClaim = null;
+    pendingResignation = false;
+    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog]) {
+        if (dialog.open) dialog.close("");
+    }
+    renderBoard();
+    turn.focus();
+    return false;
+}
+
+function completeClockMove(player) {
+    if (chessClock === null || gameResult !== null) return;
+    chessClock.remaining[player] += chessClock.increment;
+    chessClock.activePlayer = currentPlayer;
+    renderClocks();
+}
 
 // Convert piece codes into colors and accessible square labels.
 function getPieceColor(piece) {
@@ -481,7 +576,7 @@ function cannotMateByMaterial(position, player) {
 }
 
 function resign() {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
     const opponent = currentPlayer === "white" ? "black" : "white";
@@ -580,7 +675,7 @@ function getIntendedDrawClaimMoves(rule) {
 }
 
 function claimDraw(rule, intendedMove = "") {
-    if (!Object.hasOwn(drawClaimResults, rule)
+    if (!syncChessClock() || !Object.hasOwn(drawClaimResults, rule)
         || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
@@ -624,7 +719,7 @@ function updateDrawOfferControls() {
 }
 
 function toggleDrawOffer() {
-    if (!canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || !canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -634,7 +729,7 @@ function toggleDrawOffer() {
 }
 
 function respondToDrawOffer(accept) {
-    if (!hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || !hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -671,7 +766,7 @@ function clearSelection() {
 }
 
 function selectPiece(square, piece, row, column) {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return;
     }
 
@@ -726,7 +821,7 @@ function selectPiece(square, piece, row, column) {
 }
 
 function movePiece(row, column, promotion = null) {
-    if (gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return false;
     }
 
@@ -779,6 +874,7 @@ function movePiece(row, column, promotion = null) {
     }
     updateMovingCastlingRights(castlingRights, piece, fromRow, fromColumn);
     revokeRookCastlingRight(castlingRights, capturedPiece, row, column);
+    const movingColor = currentPlayer;
     const movingPlayer = currentPlayer === "white" ? "White" : "Black";
     movesPlayed++;
     drawOfferedBy = drawOfferQueued ? currentPlayer : null;
@@ -786,6 +882,7 @@ function movePiece(row, column, promotion = null) {
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     recordCurrentPosition();
     renderBoard();
+    completeClockMove(movingColor);
 
     const nextPawn = currentPlayer === "white" ? "P" : "p";
     const nextPiece = board.querySelector(`button.square:enabled[data-piece="${nextPawn}"]`)
@@ -832,6 +929,7 @@ function renderBoard() {
     }
 
     if (gameResult !== null) {
+        stopChessClock();
         drawOfferQueued = false;
         drawOfferedBy = null;
     }
@@ -841,6 +939,7 @@ function renderBoard() {
         || (!canClaimDrawNow("threefold") && getIntendedDrawClaimMoves("threefold").length === 0);
     updateDrawOfferControls();
     resignButton.hidden = gameResult !== null;
+    renderClocks();
     clearSelection();
     board.replaceChildren();
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
@@ -931,7 +1030,7 @@ promotionDialog.addEventListener("close", () => {
 });
 
 function openDrawClaim(rule) {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
         return;
     }
     if (canClaimDrawNow(rule)) {
@@ -976,7 +1075,7 @@ drawClaimDialog.addEventListener("close", () => {
 });
 
 resignButton.addEventListener("click", () => {
-    if (gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) return;
+    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) return;
     pendingResignation = true;
     resignationDialog.returnValue = "";
     resignationDialog.showModal();
@@ -991,6 +1090,10 @@ resignationDialog.addEventListener("close", () => {
         resignButton.focus();
     }
 });
+
+startClockButton.addEventListener("click", startChessClock);
+timeControl.addEventListener("change", renderClocks);
+document.addEventListener("visibilitychange", syncChessClock);
 
 recordCurrentPosition();
 renderBoard();

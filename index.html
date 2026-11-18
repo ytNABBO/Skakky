@@ -9,6 +9,21 @@
 </head>
 <body>
     <h1>Skakky</h1>
+    <div id="clock-setup">
+        <label for="time-control">Time control</label>
+        <select id="time-control" aria-describedby="clock-help">
+            <option value="">Untimed</option>
+            <option value="180+2">3 minutes + 2 seconds per move</option>
+            <option value="300+0">5 minutes</option>
+            <option value="600+5">10 minutes + 5 seconds per move</option>
+        </select>
+        <button id="start-clock" class="game-button" type="button" disabled>Start clock</button>
+        <p id="clock-help">For a timed game, choose a control and start the clock before the first move. White's time starts immediately.</p>
+    </div>
+    <div id="clock-panel" hidden>
+        <div class="clock">White <span id="white-clock" role="timer" aria-label="White clock">--:--</span></div>
+        <div class="clock">Black <span id="black-clock" role="timer" aria-label="Black clock">--:--</span></div>
+    </div>
     <p id="status" role="status"></p>
     <div id="board" role="group" aria-label="Chessboard"></div>
     <p id="turn" role="status" tabindex="-1">White to move</p>
@@ -37,11 +52,11 @@
         </form>
     </dialog>
     <dialog id="draw-claim" class="game-dialog" aria-labelledby="draw-claim-title">
-        <h2 id="draw-claim-title">Claim draw by intended move</h2>
+        <h2 id="draw-claim-title">Prepare draw claim</h2>
         <form method="dialog">
             <label for="draw-claim-move">Intended move</label>
             <select id="draw-claim-move" required autofocus></select>
-            <p>The game ends in a draw before the move is played.</p>
+            <p>In a timed game, your clock keeps running while you choose. Confirming ends the game in a draw before the move is played.</p>
             <button value="claim">Claim draw</button>
             <button value="cancel" formnovalidate>Cancel</button>
         </form>
