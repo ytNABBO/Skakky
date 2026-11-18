@@ -351,3 +351,24 @@ for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-
     assert.equal(game.result(), result);
 }
 console.log('PASS: impossible-mate timeout exceptions and every terminal result freezes both clocks.');
+
+{
+    const game = harness();
+    game.start();
+    game.fixture({
+        a1: 'R', e1: 'K', e8: 'k',
+        a3: 'P', c3: 'P', e3: 'P', g3: 'P', b4: 'P', d4: 'P', f4: 'P', h4: 'P',
+        a4: 'p', c4: 'p', e4: 'p', g4: 'p', b5: 'p', d5: 'p', f5: 'p', h5: 'p'
+    });
+    assert.equal(game.result(), 'White to move', 'A capturable rook must keep the apparent blockade active.');
+    game.move('a1', 'b1');
+    game.move('e8', 'd8');
+    game.move('b1', 'b3');
+    assert.equal(game.result(), 'Black to move');
+    game.move('a4', 'b3');
+    assert.equal(game.result(), 'White to move', 'Capturing the rook opens a pawn route and keeps play active.');
+    assert.equal(game.square('b3').dataset.piece, 'p');
+    assert(game.evaluate('getLegalMoveOptions(5, 1).moves.includes("b2")'),
+        'The pawn can advance after capturing the rook and breaking the blockade.');
+}
+console.log('PASS: a legal rook sacrifice and pawn capture break the blockade in live play.');
