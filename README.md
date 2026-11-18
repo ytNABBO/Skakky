@@ -8,6 +8,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
+- A numbered move list in FIDE algebraic notation.
 - Automatic draws, draw claims, draw offers and resignation.
 - Dead-position draws for proven pawn blockades and bounded continuations.
 - Optional chess clocks with Fischer increments and time-forfeit results.
@@ -17,13 +18,15 @@ An interactive chess game built with HTML, CSS and JavaScript.
 
 Open `index.html` in a browser. Select a piece and choose a highlighted square. Reload the page to start a new game.
 
+The **Moves** table records each completed legal move in White and Black columns. It uses the English piece letters, `x` for captures, `+` for check and `#` for checkmate. Following FIDE Appendix C, castling appears as `0-0` or `0-0-0` and promotion as, for example, `e8Q`. An offer sent with a move is marked `(=)`. Illegal moves, cancelled dialogs and simulated analysis add no entries. The list remains visible after the game ends and is cleared on reload.
+
 Games are untimed by default. Before the first move, choose 3 minutes + 2 seconds per move, 5 minutes, or 10 minutes + 5 seconds per move and press **Start clock**. White's time starts immediately. Each completed legal move switches the clock automatically and adds the increment. The time control locks when the clock starts or the first untimed move is played.
 
 The clock continues while selecting a promotion, confirming resignation or preparing a draw claim. A valid confirmed claim stops play; preparation can be cancelled. All game results stop both clocks. A player who runs out of time loses unless the opponent cannot checkmate under the proofs described below. Time uses elapsed timestamps, so delayed updates in background tabs do not pause the clock.
 
 ## Tests
 
-Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position.cjs` and `node tests/forced-dead.cjs` with Node.js. No extra packages are required.
+Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position.cjs`, `node tests/forced-dead.cjs` and `node tests/notation.cjs` with Node.js. No extra packages are required.
 
 ## Project files
 
@@ -34,6 +37,7 @@ Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position
 - `tests/clock.cjs` — deterministic clock and timed-game tests.
 - `tests/dead-position.cjs` — pawn, bishop and knight blockade proofs and dead-position tests.
 - `tests/forced-dead.cjs` — forced and branching continuations, search limits and analysis state preservation.
+- `tests/notation.cjs` — move notation, disambiguation and move-list integrity.
 
 ## Development workflow
 
@@ -41,7 +45,7 @@ Keep code, interface text, documentation and commit messages in English. Complet
 
 ## Rules and remaining work
 
-Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/chapter/E012023), especially Articles 3, 5, 6 and 9. This is a local browser game, not a tournament arbiter.
+Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/chapter/E012023), especially Articles 3, 5, 6, 8 and 9 and Appendix C. This is a local browser game, not a tournament arbiter.
 
 Either player may resign, including during the opponent's turn. Press **Resign**, choose **White** or **Black** in **Resigning player**, then confirm. The dialog defaults to the player to move each time it opens. Cancellation or Escape keeps the game active and restores focus to **Resign**. The active clock continues until confirmation; a timeout that occurs first takes precedence.
 

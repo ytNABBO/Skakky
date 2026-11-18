@@ -14,6 +14,9 @@ const declineDrawButton = document.getElementById("decline-draw");
 const resignButton = document.getElementById("resign");
 const resignationDialog = document.getElementById("resignation");
 const resigningPlayerSelect = document.getElementById("resigning-player");
+const moveHistoryBody = document.getElementById("move-history-body");
+const moveHistoryTable = document.getElementById("move-history-table");
+const moveHistoryEmpty = document.getElementById("move-history-empty");
 const timeControl = document.getElementById("time-control");
 const startClockButton = document.getElementById("start-clock");
 const clockPanel = document.getElementById("clock-panel");
@@ -51,6 +54,7 @@ const drawRepetitionLimit = 5;
 const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
 const positionOccurrences = new Map();
+const moveHistory = [];
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -191,6 +195,59 @@ function getSquareLabel(piece, position) {
     return piece === ""
         ? `Empty square ${position}`
         : `${getPieceColor(piece)} ${pieceNames[piece.toLowerCase()]} on ${position}`;
+}
+
+// Build Appendix C notation from the legal position before the move is played.
+function getAlgebraicMove(fromRow, fromColumn, toRow, toColumn, promotion = null) {
+    const piece = currentPosition[fromRow][fromColumn];
+    const kind = piece.toLowerCase();
+    if (kind === "k" && Math.abs(toColumn - fromColumn) === 2) {
+        return toColumn > fromColumn ? "0-0" : "0-0-0";
+    }
+    const destination = `${files[toColumn]}${8 - toRow}`;
+    const capture = currentPosition[toRow][toColumn] !== ""
+        || isEnPassantCapture(currentPosition, fromRow, fromColumn, toRow, toColumn);
+    let notation = kind === "p" ? (capture ? files[fromColumn] : "") : piece.toUpperCase();
+    if (kind !== "p" && kind !== "k") {
+        const alternatives = [];
+        for (let row = 0; row < 8; row++) {
+            for (let column = 0; column < 8; column++) {
+                if ((row === fromRow && column === fromColumn) || currentPosition[row][column] !== piece) continue;
+                const { moves, captures } = getLegalMoveOptions(row, column);
+                if (moves.includes(destination) || captures.includes(destination)) alternatives.push({ row, column });
+            }
+        }
+        if (alternatives.length > 0) {
+            const sameFile = alternatives.some(other => other.column === fromColumn);
+            const sameRank = alternatives.some(other => other.row === fromRow);
+            notation += !sameFile ? files[fromColumn] : !sameRank ? String(8 - fromRow)
+                : `${files[fromColumn]}${8 - fromRow}`;
+        }
+    }
+    notation += `${capture ? "x" : ""}${destination}`;
+    if (promotion !== null) notation += promotion.toUpperCase();
+    return notation;
+}
+
+function renderMoveHistory() {
+    const rows = new Map();
+    for (const entry of moveHistory) {
+        if (!rows.has(entry.number)) {
+            const element = document.createElement("tr");
+            const number = document.createElement("th");
+            number.setAttribute("scope", "row");
+            number.textContent = `${entry.number}.`;
+            const white = document.createElement("td");
+            const black = document.createElement("td");
+            white.textContent = black.textContent = "—";
+            for (const cell of [number, white, black]) element.appendChild(cell);
+            rows.set(entry.number, { element, white, black });
+        }
+        rows.get(entry.number)[entry.player].textContent = entry.notation;
+    }
+    moveHistoryBody.replaceChildren(...Array.from(rows.values(), row => row.element));
+    moveHistoryEmpty.hidden = moveHistory.length > 0;
+    moveHistoryTable.hidden = moveHistory.length === 0;
 }
 
 // Find each piece's possible moves and captures.
@@ -1107,6 +1164,7 @@ function movePiece(row, column, promotion = null) {
         return false;
     }
 
+    const notation = getAlgebraicMove(fromRow, fromColumn, row, column, promotion);
     let placedPiece = piece;
     if (promotion !== null) {
         placedPiece = currentPlayer === "white" ? promotion.toUpperCase() : promotion;
@@ -1137,6 +1195,11 @@ function movePiece(row, column, promotion = null) {
     recordCurrentPosition();
     renderBoard();
     completeClockMove(movingColor);
+    const checkSuffix = gameResult?.startsWith("Checkmate.") ? "#"
+        : findCheckedKing(currentPosition, currentPlayer) !== null ? "+" : "";
+    const offerSuffix = drawOfferedBy === movingColor ? " (=)" : "";
+    moveHistory.push({ number: Math.ceil(movesPlayed / 2), player: movingColor, notation: notation + checkSuffix + offerSuffix });
+    renderMoveHistory();
 
     const nextPawn = currentPlayer === "white" ? "P" : "p";
     const nextPiece = board.querySelector(`button.square:enabled[data-piece="${nextPawn}"]`)
@@ -1356,3 +1419,4 @@ document.addEventListener("visibilitychange", syncChessClock);
 
 recordCurrentPosition();
 renderBoard();
+renderMoveHistory();

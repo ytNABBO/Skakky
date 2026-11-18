@@ -34,6 +34,14 @@
     <button id="claim-draw" class="game-button" type="button" hidden>Claim draw (50-move rule)</button>
     <button id="claim-repetition" class="game-button" type="button" hidden>Claim draw (threefold repetition)</button>
     <button id="resign" class="game-button" type="button">Resign</button>
+    <section id="move-history" aria-labelledby="moves-title">
+        <h2 id="moves-title">Moves</h2>
+        <p id="move-history-empty">No moves played yet.</p>
+        <table id="move-history-table" aria-labelledby="moves-title" hidden>
+            <thead><tr><th scope="col">Move</th><th scope="col">White</th><th scope="col">Black</th></tr></thead>
+            <tbody id="move-history-body"></tbody>
+        </table>
+    </section>
     <dialog id="resignation" class="game-dialog" aria-labelledby="resignation-title">
         <h2 id="resignation-title">Resign this game?</h2>
         <form method="dialog">

@@ -74,6 +74,27 @@ body {
     margin: 12px 0;
 }
 
+#move-history {
+    width: min(90vw, 480px);
+    margin: 24px auto;
+}
+
+#move-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+#move-history-table th,
+#move-history-table td {
+    padding: 8px;
+    border: 1px solid #b58863;
+}
+
+#move-history-table thead {
+    background-color: #303030;
+}
+
 #draw-claim form > label,
 #draw-claim form > select,
 #resignation form > label,
