@@ -17,6 +17,7 @@ const resigningPlayerSelect = document.getElementById("resigning-player");
 const moveHistoryBody = document.getElementById("move-history-body");
 const moveHistoryTable = document.getElementById("move-history-table");
 const moveHistoryEmpty = document.getElementById("move-history-empty");
+const downloadPgnButton = document.getElementById("download-pgn");
 const timeControl = document.getElementById("time-control");
 const startClockButton = document.getElementById("start-clock");
 const clockPanel = document.getElementById("clock-panel");
@@ -55,6 +56,7 @@ const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
 const positionOccurrences = new Map();
 const moveHistory = [];
+const gameStartedAt = new Date();
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -134,6 +136,8 @@ function startChessClock() {
     chessClock = {
         remaining: { white: control.time, black: control.time },
         increment: control.increment,
+        timeControl: control.increment === 0 ? String(control.time / 1000)
+            : `${control.time / 1000}+${control.increment / 1000}`,
         activePlayer: "white",
         lastTimestamp: performance.now()
     };
@@ -248,6 +252,76 @@ function renderMoveHistory() {
     moveHistoryBody.replaceChildren(...Array.from(rows.values(), row => row.element));
     moveHistoryEmpty.hidden = moveHistory.length > 0;
     moveHistoryTable.hidden = moveHistory.length === 0;
+}
+
+function getPgnDate() {
+    return `${gameStartedAt.getFullYear()}.${String(gameStartedAt.getMonth() + 1).padStart(2, "0")}.${String(gameStartedAt.getDate()).padStart(2, "0")}`;
+}
+
+function getPgnResult() {
+    if (gameResult === null) return "*";
+    if (gameResult.endsWith("White wins.")) return "1-0";
+    if (gameResult.endsWith("Black wins.")) return "0-1";
+    if (gameResult.startsWith("Draw") || gameResult === "Stalemate. Draw.") return "1/2-1/2";
+    return "*";
+}
+
+// PGN uses SAN spelling, which differs from the visible Appendix C move list.
+function getPgn() {
+    const result = getPgnResult();
+    const tags = [
+        ["Event", "Skakky casual game"], ["Site", "?"], ["Date", getPgnDate()],
+        ["Round", "-"], ["White", "?"], ["Black", "?"], ["Result", result],
+        ["PlyCount", String(moveHistory.length)], ["TimeControl", chessClock?.timeControl ?? "-"]
+    ];
+    const tokens = [];
+    let previous = null;
+    for (const entry of moveHistory) {
+        if (entry.player === "white") {
+            tokens.push(`${entry.number}.`);
+        } else if (previous === null || previous.player !== "white" || previous.number !== entry.number
+            || previous.notation.endsWith(" (=)")) {
+            tokens.push(`${entry.number}...`);
+        }
+        const offeredDraw = entry.notation.endsWith(" (=)");
+        let san = offeredDraw ? entry.notation.slice(0, -4) : entry.notation;
+        if (san.startsWith("0-0")) san = san.replace(/0/g, "O");
+        san = san.replace(/^([a-h](?:x[a-h])?[18])([QRBN])([+#]?)$/, "$1=$2$3");
+        tokens.push(san);
+        if (offeredDraw) tokens.push("{Draw offered.}");
+        previous = entry;
+    }
+    tokens.push(result);
+    const lines = [];
+    let line = "";
+    for (const token of tokens) {
+        if (line !== "" && line.length + 1 + token.length > 79) {
+            lines.push(line);
+            line = token;
+        } else {
+            line += (line === "" ? "" : " ") + token;
+        }
+    }
+    lines.push(line);
+    return tags.map(([name, value]) => `[${name} "${value}"]`).join("\n")
+        + "\n\n" + lines.join("\n") + "\n\n";
+}
+
+function downloadPgn() {
+    // Settle an overdue clock before choosing the exported result.
+    syncChessClock();
+    const url = URL.createObjectURL(new Blob([getPgn()], { type: "application/x-chess-pgn;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `skakky-${getPgnDate().replace(/\./g, "-")}.pgn`;
+    link.hidden = true;
+    try {
+        document.body.appendChild(link);
+        link.click();
+    } finally {
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
 }
 
 // Find each piece's possible moves and captures.
@@ -1414,6 +1488,7 @@ resignationDialog.addEventListener("close", () => {
 });
 
 startClockButton.addEventListener("click", startChessClock);
+downloadPgnButton.addEventListener("click", downloadPgn);
 timeControl.addEventListener("change", renderClocks);
 document.addEventListener("visibilitychange", syncChessClock);
 

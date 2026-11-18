@@ -9,6 +9,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - A numbered move list in FIDE algebraic notation.
+- PGN downloads for finished and unfinished games.
 - Automatic draws, draw claims, draw offers and resignation.
 - Dead-position draws for proven pawn blockades and bounded continuations.
 - Optional chess clocks with Fischer increments and time-forfeit results.
@@ -20,13 +21,24 @@ Open `index.html` in a browser. Select a piece and choose a highlighted square. 
 
 The **Moves** table records each completed legal move in White and Black columns. It uses the English piece letters, `x` for captures, `+` for check and `#` for checkmate. Following FIDE Appendix C, castling appears as `0-0` or `0-0-0` and promotion as, for example, `e8Q`. An offer sent with a move is marked `(=)`. Illegal moves, cancelled dialogs and simulated analysis add no entries. The list remains visible after the game ends and is cleared on reload.
 
+Press **Download PGN** to save the current game as a `.pgn` file. The export contains only completed moves, the result (`*` while play continues), the opening date and time control. Unknown player names and site use `?`. The visible notation is converted to PGN SAN (`O-O`, `e8=Q`), and draw offers become comments, following the [PGN specification](https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm). Downloading keeps the game running; an overdue clock is settled before the file's result is chosen.
+
 Games are untimed by default. Before the first move, choose 3 minutes + 2 seconds per move, 5 minutes, or 10 minutes + 5 seconds per move and press **Start clock**. White's time starts immediately. Each completed legal move switches the clock automatically and adds the increment. The time control locks when the clock starts or the first untimed move is played.
 
 The clock continues while selecting a promotion, confirming resignation or preparing a draw claim. A valid confirmed claim stops play; preparation can be cancelled. All game results stop both clocks. A player who runs out of time loses unless the opponent cannot checkmate under the proofs described below. Time uses elapsed timestamps, so delayed updates in background tabs do not pause the clock.
 
 ## Tests
 
-Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position.cjs`, `node tests/forced-dead.cjs` and `node tests/notation.cjs` with Node.js. No extra packages are required.
+Run these commands with Node.js. No extra packages are required.
+
+```sh
+node tests/movement.cjs
+node tests/clock.cjs
+node tests/dead-position.cjs
+node tests/forced-dead.cjs
+node tests/notation.cjs
+node tests/pgn.cjs
+```
 
 ## Project files
 
@@ -38,6 +50,7 @@ Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position
 - `tests/dead-position.cjs` — pawn, bishop and knight blockade proofs and dead-position tests.
 - `tests/forced-dead.cjs` — forced and branching continuations, search limits and analysis state preservation.
 - `tests/notation.cjs` — move notation, disambiguation and move-list integrity.
+- `tests/pgn.cjs` — PGN serialization, results, metadata and download behavior.
 
 ## Development workflow
 
