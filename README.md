@@ -9,7 +9,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - Automatic draws, draw claims, draw offers and resignation.
-- Dead-position draws for proven pawn blockades and forced continuations.
+- Dead-position draws for proven pawn blockades and bounded continuations.
 - Optional chess clocks with Fischer increments and time-forfeit results.
 - Responsive board with keyboard support.
 
@@ -33,7 +33,7 @@ Run `node tests/movement.cjs`, `node tests/clock.cjs`, `node tests/dead-position
 - `tests/movement.cjs` — movement and game-rule tests.
 - `tests/clock.cjs` — deterministic clock and timed-game tests.
 - `tests/dead-position.cjs` — pawn, bishop and knight blockade proofs and dead-position tests.
-- `tests/forced-dead.cjs` — forced continuations, search limits and analysis state preservation.
+- `tests/forced-dead.cjs` — forced and branching continuations, search limits and analysis state preservation.
 
 ## Development workflow
 
@@ -51,10 +51,10 @@ The same proof can include bishops confined by the pawn structure. A bishop must
 
 The blockade proof is conservative: a possible en passant capture, a rook or queen, an accessible pawn or a bishop or knight that might give check prevents that proof from declaring a draw.
 
-A separate proof follows positions with exactly one legal complete move for up to eight half-moves. If the forced continuation reaches a known dead position, stalemate or a repeated position, the game ends immediately in the original position. Simulated moves are never played. For example, if the only reply to a check would capture the last mating piece and leave a king and bishop against a king, the draw is declared before that capture. A branch, promotion choices or the search limit without a proof keeps play active.
+A separate proof considers all legal continuations, including all four promotion choices, up to eight half-moves and 64 analyzed positions. Every branch must end in a known dead position, stalemate or a closed cycle without an unproved exit. If any branch can still reach checkmate or remains unproved when a limit is reached, this check does not declare a draw. Simulated moves are never played. For example, if both replies to a check capture the last mating piece and leave a king and bishop against a king, the draw is declared before either capture.
 
 Remaining work:
 
-- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, fortresses that permit checks, branching continuations and forced lines longer than eight half-moves. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
+- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with rooks or queens, fortresses that permit checks, continuations beyond the eight-half-move or 64-position search limits. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
 
 Piece selection and cancellable move dialogs are interface conveniences; physical touch-move rules, arbiter penalties and tournament-specific draw restrictions are not enforced.

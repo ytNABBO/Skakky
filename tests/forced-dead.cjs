@@ -77,10 +77,10 @@ const snapshot = `JSON.stringify([
     halfmoveClock, movesPlayed, Array.from(positionOccurrences),
     gameResult, declaredResult, drawOfferQueued, drawOfferedBy,
     pendingPromotion, pendingDrawClaim, pendingResignation, chessClock, clockTimer,
-    turn.textContent, status.textContent
+    turn.textContent, status.textContent, promotionChoices
 ])`;
 
-function prove(game, expected, limit = 8) {
+function prove(game, expected, limit = 8, maxNodes = 64) {
     const before = game.evaluate(snapshot);
     const board = game.evaluate('currentPosition');
     const ranks = game.evaluate('currentPosition.slice()');
@@ -89,7 +89,7 @@ function prove(game, expected, limit = 8) {
     const selected = game.evaluate('selectedSquare');
     const clock = game.evaluate('chessClock');
     const timers = game.timerCount();
-    assert.equal(game.evaluate(`isDeadByForcedLine(${JSON.stringify(limit)})`), expected);
+    assert.equal(game.evaluate(`isDeadByContinuation(${JSON.stringify(limit)}, ${JSON.stringify(maxNodes)})`), expected);
     assert.equal(game.evaluate(snapshot), before, 'Analysis must restore all live game values.');
     assert.equal(game.evaluate('currentPosition'), board, 'The board object must retain its identity.');
     for (let row = 0; row < 8; row++) assert.equal(game.evaluate(`currentPosition[${row}]`), ranks[row]);
@@ -173,3 +173,79 @@ integration.evaluate('renderBoard();');
 assert.equal(integration.evaluate('turn.textContent'), 'Draw by dead position.');
 assert.equal(integration.evaluate('document.activeElement === turn'), true);
 console.log('PASS: the triggering move declares a dead draw, disables play and preserves the real position on redraw.');
+
+
+const branchingCaptures = { a1: 'K', c4: 'B', c2: 'k', a2: 'r' };
+const swappedBranches = Object.fromEntries(Object.entries(branchingCaptures).map(([square, piece]) =>
+    [square[0] + (9 - Number(square[1])), piece === piece.toUpperCase() ? piece.toLowerCase() : piece.toUpperCase()]));
+for (const [pieces, player, expectedMoves] of [
+    [branchingCaptures, 'white', ['a1-a2', 'c4-a2']],
+    [swappedBranches, 'black', ['a8-a7', 'c5-a7']]
+]) {
+    const game = harness(pieces, player);
+    assert.deepEqual(game.moves(), expectedMoves);
+    prove(game, false, 0);
+    prove(game, false, 1, 2);
+    prove(game, true, 1, 3);
+    prove(game, true);
+}
+
+// Bxa2 is examined first and proves dead, but a later Kb1 escape cannot be ignored.
+const branchingEscape = harness({ a1: 'K', c4: 'B', c3: 'k', a2: 'r' });
+assert.deepEqual(branchingEscape.moves(), ['a1-a2', 'a1-b1', 'c4-a2']);
+branchingEscape.evaluate(`
+    timeControl.value = '180+2'; startChessClock();
+    selectedSquare = document.createElement('button'); selectedSquare.dataset.position = 'c4';
+    halfmoveClock = 99; movesPlayed = 20;
+    positionOccurrences.set('prior-branch-position', 2);
+    drawOfferQueued = true;
+`);
+prove(branchingEscape, false, 1);
+prove(branchingEscape, false);
+assert.equal(branchingEscape.evaluate('castlingRights.white.kingside && castlingRights.white.queenside'), true,
+    'A simulated sibling king move must not leak castling-right changes.');
+
+for (const budget of [0, -1, 1.5, 65, '64', null]) prove(harness(branchingCaptures), false, 8, budget);
+prove(harness(forcedCapture), false, 1, 1);
+prove(harness(forcedCapture), true, 1, 2);
+console.log('PASS: every branch must prove dead, both colors, node/depth limits and complete sibling-state restoration.');
+
+// Examine dead B/N promotions before Q/R continuations that can still produce mate.
+const capturePromotion = harness({ a1: 'K', b7: 'P', c2: 'k', a8: 'r' });
+assert.deepEqual(capturePromotion.moves(), ['b7-a8=b', 'b7-a8=n', 'b7-a8=q', 'b7-a8=r']);
+capturePromotion.evaluate("promotionChoices.splice(0, promotionChoices.length, 'b', 'n', 'q', 'r');");
+prove(capturePromotion, false, 1);
+prove(capturePromotion, false);
+assert.equal(capturePromotion.evaluate('currentPosition[0][0]'), 'r', 'Analysis must restore the captured rook after every promotion sibling.');
+assert.equal(capturePromotion.evaluate('currentPosition[1][1]'), 'P');
+console.log('PASS: dead underpromotion choices cannot hide queen or rook continuations.');
+
+const initial = harness({});
+initial.evaluate(`
+    startingPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+`);
+prove(initial, false);
+prove(initial, false, 8, 1);
+console.log('PASS: the ordinary starting position remains unproved within the bounded search.');
+
+// Rb2-a2 creates two dead replies; neither hypothetical capture may be played.
+const branchingIntegration = harness({ a1: 'K', c4: 'B', c2: 'k', b2: 'r' }, 'black');
+branchingIntegration.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(branchingIntegration.evaluate('gameResult'), null);
+assert.equal(branchingIntegration.evaluate(`
+    selectedSquare = document.createElement('button'); selectedSquare.dataset.position = 'b2';
+    movePiece(6, 0);
+`), true);
+assert.equal(branchingIntegration.evaluate('turn.textContent'), 'Draw by dead position.');
+assert.equal(branchingIntegration.evaluate('currentPosition[7][0]'), 'K');
+assert.equal(branchingIntegration.evaluate('currentPosition[4][2]'), 'B');
+assert.equal(branchingIntegration.evaluate('currentPosition[6][0]'), 'r');
+assert.equal(branchingIntegration.evaluate('halfmoveClock'), 1, 'Simulated captures must not reset the real move counter.');
+assert.equal(branchingIntegration.evaluate('positionOccurrences.size'), 3,
+    'Only the starting position, fixture and real triggering move belong in repetition history.');
+assert.equal(branchingIntegration.elements.get('board').children.filter(square => !square.disabled).length, 0);
+assert.equal(branchingIntegration.evaluate('claimDrawButton.hidden && claimRepetitionButton.hidden && resignButton.hidden'), true);
+branchingIntegration.evaluate('renderBoard();');
+assert.equal(branchingIntegration.evaluate('turn.textContent'), 'Draw by dead position.');
+assert.equal(branchingIntegration.evaluate('document.activeElement === turn'), true);
+console.log('PASS: a real move declares the branching dead draw while board, counters and history retain only actual play.');

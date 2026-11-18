@@ -47,7 +47,8 @@ const claimHalfmoveLimit = 100; // 50 moves by each player.
 const drawHalfmoveLimit = 150; // 75 moves by each player.
 const claimRepetitionLimit = 3;
 const drawRepetitionLimit = 5;
-const forcedDeadPlyLimit = 8;
+const deadPositionPlyLimit = 8;
+const deadPositionNodeLimit = 64;
 const positionOccurrences = new Map();
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
@@ -701,64 +702,89 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     return true;
 }
 
-// Follow unique legal replies without playing them or changing the live game.
-function isDeadByForcedLine(maxPlies = forcedDeadPlyLimit) {
-    if (!Number.isInteger(maxPlies) || maxPlies < 0 || maxPlies > forcedDeadPlyLimit) return false;
+// Prove every continuation dead within fixed limits, without playing simulated moves.
+function isDeadByContinuation(maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
+    if (!Number.isInteger(maxPlies) || maxPlies < 0 || maxPlies > deadPositionPlyLimit
+        || !Number.isInteger(maxNodes) || maxNodes < 1 || maxNodes > deadPositionNodeLimit) return false;
     const pieces = currentPosition.flat();
     if (pieces.filter(piece => piece === "K").length !== 1
         || pieces.filter(piece => piece === "k").length !== 1) return false;
-    const savedPosition = currentPosition.map(rank => rank.slice());
-    const savedPlayer = currentPlayer;
-    const savedEnPassant = enPassant;
-    const savedRights = { white: { ...castlingRights.white }, black: { ...castlingRights.black } };
-    const seen = new Set();
 
-    try {
-        for (let depth = 0; depth <= maxPlies; depth++) {
-            const replies = [];
-            search: for (let row = 0; row < 8; row++) {
-                for (let column = 0; column < 8; column++) {
-                    const piece = currentPosition[row][column];
-                    if (piece === "" || getPieceColor(piece) !== currentPlayer) continue;
-                    const { moves, captures } = getLegalMoveOptions(row, column);
-                    for (const destination of [...moves, ...captures]) {
-                        const toRow = 8 - Number(destination[1]);
-                        const toColumn = files.indexOf(destination[0]);
-                        const promotes = piece.toLowerCase() === "p" && (toRow === 0 || toRow === 7);
-                        for (const promotion of promotes ? promotionChoices : [null]) {
-                            replies.push({ row, column, toRow, toColumn, promotion });
-                            // Two complete moves are enough to establish that the line branches.
-                            if (replies.length === 2) break search;
-                        }
+    function savePosition() {
+        return {
+            position: currentPosition.map(rank => rank.slice()),
+            player: currentPlayer,
+            enPassant,
+            rights: { white: { ...castlingRights.white }, black: { ...castlingRights.black } }
+        };
+    }
+    function restorePosition(saved) {
+        saved.position.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+        currentPlayer = saved.player;
+        enPassant = saved.enPassant;
+        Object.assign(castlingRights.white, saved.rights.white);
+        Object.assign(castlingRights.black, saved.rights.black);
+    }
+
+    const original = savePosition();
+    const path = new Set();
+    let nodes = 0;
+    function allContinuationsDead(depth) {
+        if (nodes >= maxNodes) return false;
+        nodes++;
+        const replies = [];
+        for (let row = 0; row < 8; row++) {
+            for (let column = 0; column < 8; column++) {
+                const piece = currentPosition[row][column];
+                if (piece === "" || getPieceColor(piece) !== currentPlayer) continue;
+                const { moves, captures } = getLegalMoveOptions(row, column);
+                for (const destination of [...moves, ...captures]) {
+                    const toRow = 8 - Number(destination[1]);
+                    const toColumn = files.indexOf(destination[0]);
+                    const promotes = piece.toLowerCase() === "p" && (toRow === 0 || toRow === 7);
+                    for (const promotion of promotes ? promotionChoices : [null]) {
+                        replies.push({ row, column, toRow, toColumn, promotion });
                     }
                 }
             }
-            if (replies.length === 0) return findCheckedKing(currentPosition, currentPlayer) === null;
-            if (isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
-            if (replies.length > 1) return false;
-            const key = serializePosition(currentPosition, currentPlayer, castlingRights, enPassant);
-            if (seen.has(key)) return true;
-            if (depth === maxPlies) return false;
-            seen.add(key);
-
-            const { row, column, toRow, toColumn, promotion } = replies[0];
-            const piece = currentPosition[row][column];
-            const placedPiece = promotion === null ? piece
-                : currentPlayer === "white" ? promotion.toUpperCase() : promotion;
-            const { capturedPiece } = movePieceOnBoard(currentPosition, row, column, toRow, toColumn, placedPiece);
-            updateMovingCastlingRights(castlingRights, piece, row, column);
-            revokeRookCastlingRight(castlingRights, capturedPiece, toRow, toColumn);
-            enPassant = piece.toLowerCase() === "p" && Math.abs(toRow - row) === 2
-                ? { pawnRow: toRow, column: toColumn, targetRow: (row + toRow) / 2 } : null;
-            currentPlayer = currentPlayer === "white" ? "black" : "white";
         }
-        return false;
+        if (replies.length === 0) return findCheckedKing(currentPosition, currentPlayer) === null;
+        if (isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
+        const key = serializePosition(currentPosition, currentPlayer, castlingRights, enPassant);
+        // Close only the current path; every other exit from the cycle must still be checked.
+        if (path.has(key)) return true;
+        if (depth === maxPlies) return false;
+        path.add(key);
+        const parent = savePosition();
+        try {
+            for (const { row, column, toRow, toColumn, promotion } of replies) {
+                let provedDead;
+                try {
+                    const piece = currentPosition[row][column];
+                    const placedPiece = promotion === null ? piece
+                        : currentPlayer === "white" ? promotion.toUpperCase() : promotion;
+                    const { capturedPiece } = movePieceOnBoard(currentPosition, row, column, toRow, toColumn, placedPiece);
+                    updateMovingCastlingRights(castlingRights, piece, row, column);
+                    revokeRookCastlingRight(castlingRights, capturedPiece, toRow, toColumn);
+                    enPassant = piece.toLowerCase() === "p" && Math.abs(toRow - row) === 2
+                        ? { pawnRow: toRow, column: toColumn, targetRow: (row + toRow) / 2 } : null;
+                    currentPlayer = currentPlayer === "white" ? "black" : "white";
+                    provedDead = allContinuationsDead(depth + 1);
+                } finally {
+                    restorePosition(parent);
+                }
+                // A possible mate or an unproved branch is enough to keep the game active.
+                if (!provedDead) return false;
+            }
+            return true;
+        } finally {
+            path.delete(key);
+        }
+    }
+    try {
+        return allContinuationsDead(0);
     } finally {
-        savedPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
-        currentPlayer = savedPlayer;
-        enPassant = savedEnPassant;
-        Object.assign(castlingRights.white, savedRights.white);
-        Object.assign(castlingRights.black, savedRights.black);
+        restorePosition(original);
     }
 }
 
@@ -1135,7 +1161,7 @@ function renderBoard() {
         gameResult = "Draw by insufficient material.";
     } else if (isDeadByPawnBlockade(currentPosition, enPassant)) {
         gameResult = "Draw by dead position.";
-    } else if (isDeadByForcedLine()) {
+    } else if (isDeadByContinuation()) {
         gameResult = "Draw by dead position.";
     } else if (halfmoveClock >= drawHalfmoveLimit) {
         gameResult = "Draw by the 75-move rule.";
