@@ -44,7 +44,7 @@ Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/cha
 
 Resignation requires confirmation; cancellation or Escape keeps the game active. Under Article 5.1.2, resignation is a draw when the opponent cannot checkmate. Material checks cover a bare king, a lone knight against only a king or a king and queens, and positions containing only kings and bishops on one square color. Two knights can give mate with cooperation and do not automatically imply a draw.
 
-Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move.
+Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move. A double pawn move can complete the blockade immediately when no adjacent opposing pawn can capture en passant; an unusable en passant marker does not postpone the draw.
 
 The same proof can include bishops confined by the pawn structure. A bishop must never be able to capture a pawn, be captured by a pawn or reach any square where it could check the enemy king. Knights are checked through every possible jump and attack square, including jumps over the wall. A knight that might free a pawn or ever check the enemy king prevents a draw. The proof also considers routes that could open after a bishop or knight is captured.
 

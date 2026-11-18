@@ -553,8 +553,22 @@ function isDeadByMaterial(position) {
 
 // Prove a pawn blockade dead when no piece can break it or ever give check.
 function isDeadByPawnBlockade(position, enPassantState = null) {
-    // A recent double step may still allow the blockade to be opened en passant.
-    if (enPassantState !== null) return false;
+    if (enPassantState !== null) {
+        if (typeof enPassantState !== "object") return false;
+        const { pawnRow, column, targetRow } = enPassantState;
+        if (!Number.isInteger(column) || column < 0 || column > 7
+            || !Number.isInteger(pawnRow) || !Number.isInteger(targetRow)) return false;
+        const movedPawn = pawnRow === 4 && targetRow === 5 ? "P"
+            : pawnRow === 3 && targetRow === 2 ? "p" : null;
+        if (movedPawn === null || position[pawnRow][column] !== movedPawn
+            || position[targetRow][column] !== ""
+            || position[movedPawn === "P" ? 6 : 1][column] !== "") return false;
+        const capturingPawn = movedPawn === "P" ? "p" : "P";
+        // Only an adjacent opposing pawn can use this one-move capture opportunity.
+        // Reject even a possibly pinned capture: uncertainty must keep play active.
+        if ([column - 1, column + 1].some(adjacentColumn =>
+            position[pawnRow][adjacentColumn] === capturingPawn)) return false;
+    }
     const kings = { white: [], black: [] };
     const pawns = [];
     const bishops = [];

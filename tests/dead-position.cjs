@@ -482,3 +482,86 @@ assert.equal(evaluate('claimRepetitionButton.hidden'), true);
 evaluate('renderBoard();');
 assert.equal(evaluate('turn.textContent'), 'Draw by dead position.');
 console.log('PASS: the final pawn move traps the knight and finishes play automatically.');
+
+const irrelevantBlackEnPassant = { pawnRow: 3, column: 7, targetRow: 2 };
+const irrelevantWhiteEnPassant = { pawnRow: 4, column: 7, targetRow: 5 };
+assert.equal(isDead(blockade, irrelevantBlackEnPassant), true,
+    'A double step without an adjacent opposing pawn must not delay a dead-position draw.');
+assert.equal(isDead(colorSwapped, irrelevantWhiteEnPassant), true,
+    'An irrelevant White en passant target must allow the same proof.');
+assert.equal(isDead({ ...blockade, c1: 'B', c8: 'b' }, irrelevantBlackEnPassant), true,
+    'Confined bishops must not make an irrelevant capture target effective.');
+assert.equal(isDead(knightBlockade, { pawnRow: 3, column: 0, targetRow: 2 }), true,
+    'The a7-a5 double step has no adjacent White pawn in the trapped-knight wall.');
+assert.equal(isDead(blockade, { pawnRow: 4, column: 1, targetRow: 5 }), false,
+    'Black a4xb3 en passant can break this wall after b2-b4.');
+assert.equal(isDead(colorSwapped, { pawnRow: 3, column: 1, targetRow: 2 }), false,
+    'White a5xb6 en passant can break the reflected wall after b7-b5.');
+
+for (const state of [
+    false, 0, 'h6', [], {},
+    { pawnRow: 3, column: -1, targetRow: 2 },
+    { pawnRow: 3, column: 8, targetRow: 2 },
+    { pawnRow: 3, column: 7.5, targetRow: 2 },
+    { pawnRow: 3, column: '7', targetRow: 2 },
+    { pawnRow: NaN, column: 7, targetRow: 2 },
+    { pawnRow: Infinity, column: 7, targetRow: 2 },
+    { pawnRow: 99, column: 7, targetRow: 2 },
+    { pawnRow: 3, column: 7, targetRow: 5 },
+    { pawnRow: 3, column: 7, targetRow: 2.5 },
+    { pawnRow: 4, column: 7, targetRow: 5 },
+    { pawnRow: 3, column: 6, targetRow: 2 }
+]) {
+    assert.equal(isDead(blockade, state), false, 'An invalid capture record must leave the result uncertain.');
+}
+assert.equal(isDead({ ...blockade, h6: 'p' }, irrelevantBlackEnPassant), false,
+    'An occupied en passant target cannot be accepted as a valid last double step.');
+assert.equal(isDead({ ...blockade, h7: 'b' }, irrelevantBlackEnPassant), false,
+    'The original square of a last double-stepping pawn must be empty.');
+console.log('PASS: irrelevant en passant targets permit blockade proofs; real captures and malformed records stay conservative.');
+
+function setLivePosition(pieces, player) {
+    context.fixture = position(pieces);
+    context.fixturePlayer = player;
+    evaluate(`
+        fixture.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+        currentPlayer = fixturePlayer; enPassant = null; halfmoveClock = 149;
+        positionOccurrences.clear(); recordCurrentPosition(); renderBoard();
+    `);
+}
+function playLiveMove(from, to) {
+    context.fixtureMove = { from, row: 8 - Number(to[1]), column: files.indexOf(to[0]) };
+    return evaluate(`
+        selectedSquare = document.createElement('button');
+        selectedSquare.dataset.position = fixtureMove.from;
+        movePiece(fixtureMove.row, fixtureMove.column);
+    `);
+}
+
+for (const [pieces, player, from, to, expectedState] of [
+    [{ ...blockade, h5: '', h7: 'p' }, 'black', 'h7', 'h5', irrelevantBlackEnPassant],
+    [{ ...colorSwapped, h4: '', h2: 'P' }, 'white', 'h2', 'h4', irrelevantWhiteEnPassant]
+]) {
+    setLivePosition(pieces, player);
+    assert.equal(evaluate('gameResult'), null, 'A wall with one advancing pawn must remain active.');
+    assert.equal(playLiveMove(from, to), true);
+    assert.equal(evaluate('turn.textContent'), 'Draw by dead position.');
+    assert.equal(evaluate('halfmoveClock'), 0, 'The last double step remains a pawn move, independent of the draw.');
+    assert.equal(evaluate('JSON.stringify(enPassant)'), JSON.stringify(expectedState),
+        'An irrelevant record remains available for position identity and does not need mutation.');
+    assert.equal(elements.get('board').children.filter(square => !square.disabled).length, 0);
+    assert.equal(evaluate('claimDrawButton.hidden'), true);
+    assert.equal(evaluate('claimRepetitionButton.hidden'), true);
+    evaluate('renderBoard();');
+    assert.equal(evaluate('turn.textContent'), 'Draw by dead position.', 'The immediate dead draw must survive redraw.');
+}
+
+setLivePosition({ ...colorSwapped, b5: '', b7: 'p' }, 'black');
+assert.equal(playLiveMove('b7', 'b5'), true);
+assert.equal(evaluate('turn.textContent'), 'White to move', 'A real White en passant reply must remain available.');
+assert(evaluate('getLegalMoveOptions(3, 0).captures.includes("b6")'));
+assert.equal(playLiveMove('a5', 'b6'), true);
+assert.equal(evaluate('currentPosition[3][1]'), '', 'The double-stepping Black pawn is removed en passant.');
+assert.equal(evaluate('currentPosition[2][1]'), 'P');
+assert.equal(evaluate('gameResult'), null, 'The reflected en passant break must keep play active.');
+console.log('PASS: both last double steps draw immediately without a usable en passant reply; a real reflected reply still breaks the wall.');
