@@ -9,6 +9,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - Automatic draws, draw claims, draw offers and resignation.
+- Dead-position draws for proven pawn blockades.
 - Optional chess clocks with Fischer increments and time-forfeit results.
 - Responsive board with keyboard support.
 
@@ -22,7 +23,7 @@ The clock continues while selecting a promotion, confirming resignation or prepa
 
 ## Tests
 
-Run `node tests/movement.cjs` and `node tests/clock.cjs` with Node.js. No extra packages are required.
+Run `node tests/movement.cjs`, `node tests/clock.cjs` and `node tests/dead-position.cjs` with Node.js. No extra packages are required.
 
 ## Project files
 
@@ -31,6 +32,7 @@ Run `node tests/movement.cjs` and `node tests/clock.cjs` with Node.js. No extra 
 - `script.js` — chess rules and gameplay.
 - `tests/movement.cjs` — movement and game-rule tests.
 - `tests/clock.cjs` — deterministic clock and timed-game tests.
+- `tests/dead-position.cjs` — pawn-blockade proofs and dead-position tests.
 
 ## Development workflow
 
@@ -42,8 +44,10 @@ Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/cha
 
 Resignation requires confirmation; cancellation or Escape keeps the game active. Under Article 5.1.2, resignation is a draw when the opponent cannot checkmate. Material checks cover a bare king, a lone knight against only a king or a king and queens, and positions containing only kings and bishops on one square color. Two knights can give mate with cooperation and do not automatically imply a draw.
 
+Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move. Detection is conservative: a possible en passant capture, another piece or a route to a capturable pawn prevents this rule from declaring a draw.
+
 Remaining work:
 
-- Detect dead positions and impossible mates that depend on legal move sequences, including blocked pawn structures. Current automatic draws, resignation and timeout checks use material only and do not fully implement these exceptional cases.
+- Extend dead-position and impossible-mate detection beyond material checks and proven pawn blockades, including fortresses with other pieces and positions requiring forced-move analysis. Resignation and timeout exceptions still use material checks; other undetected dead positions remain a limitation.
 
 Piece selection and cancellable move dialogs are interface conveniences; physical touch-move rules, arbiter penalties and tournament-specific draw restrictions are not enforced.

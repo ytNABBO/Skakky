@@ -551,6 +551,72 @@ function isDeadByMaterial(position) {
     return knightCount === 0 || (knightCount === 1 && bishopSquareColor === null);
 }
 
+// Prove a locked pawn position dead only when neither king can ever break it.
+function isDeadByPawnBlockade(position, enPassantState = null) {
+    // A recent double step may still allow the blockade to be opened en passant.
+    if (enPassantState !== null) return false;
+    const kings = { white: [], black: [] };
+    const pawns = [];
+    const pawnAttacks = { white: new Set(), black: new Set() };
+    for (let row = 0; row < 8; row++) {
+        for (let column = 0; column < 8; column++) {
+            const piece = position[row][column];
+            if (piece === "") continue;
+            const player = getPieceColor(piece);
+            if (piece.toLowerCase() === "k") {
+                kings[player].push([row, column]);
+            } else if (piece.toLowerCase() === "p" && row > 0 && row < 7) {
+                pawns.push({ row, column, player });
+            } else {
+                return false;
+            }
+        }
+    }
+    if (pawns.length === 0 || kings.white.length !== 1 || kings.black.length !== 1
+        || findCheckedKing(position, "white") !== null || findCheckedKing(position, "black") !== null) {
+        return false;
+    }
+    for (const { row, column, player } of pawns) {
+        const nextRow = row + (player === "white" ? -1 : 1);
+        // Every pawn is blocked by another pawn, rather than by a movable king.
+        if (position[nextRow][column].toLowerCase() !== "p") return false;
+        const opponentPawn = player === "white" ? "p" : "P";
+        for (const nextColumn of [column - 1, column + 1]) {
+            if (nextColumn < 0 || nextColumn > 7) continue;
+            if (position[nextRow][nextColumn] === opponentPawn) return false;
+            pawnAttacks[player].add(nextRow * 8 + nextColumn);
+        }
+    }
+
+    function kingCanReachPawn(player) {
+        const opponent = player === "white" ? "black" : "white";
+        const opponentPawn = player === "white" ? "p" : "P";
+        const ownPawn = player === "white" ? "P" : "p";
+        const queue = kings[player].slice();
+        const visited = new Set([queue[0][0] * 8 + queue[0][1]]);
+        for (let index = 0; index < queue.length; index++) {
+            const [row, column] = queue[index];
+            for (const [dr, dc] of adjacentOffsets) {
+                const nextRow = row + dr;
+                const nextColumn = column + dc;
+                const square = nextRow * 8 + nextColumn;
+                if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7
+                    || visited.has(square) || pawnAttacks[opponent].has(square)) continue;
+                const target = position[nextRow][nextColumn];
+                if (target === ownPawn) continue;
+                if (target === opponentPawn) return true;
+                // Ignoring the other king permits extra paths: uncertainty keeps play active.
+                visited.add(square);
+                queue.push([nextRow, nextColumn]);
+            }
+        }
+        return false;
+    }
+
+    // Without a first pawn capture, no pawn can move or create a new check.
+    return !kingCanReachPawn("white") && !kingCanReachPawn("black");
+}
+
 // Material can prove mating impossible even when the other player can still mate.
 function cannotMateByMaterial(position, player) {
     const own = [];
@@ -922,6 +988,8 @@ function renderBoard() {
         gameResult = checkedKing === null ? "Stalemate. Draw." : `Checkmate. ${winner} wins.`;
     } else if (isDeadByMaterial(currentPosition)) {
         gameResult = "Draw by insufficient material.";
+    } else if (isDeadByPawnBlockade(currentPosition, enPassant)) {
+        gameResult = "Draw by dead position.";
     } else if (halfmoveClock >= drawHalfmoveLimit) {
         gameResult = "Draw by the 75-move rule.";
     } else if ((positionOccurrences.get(getPositionKey()) ?? 0) >= drawRepetitionLimit) {
