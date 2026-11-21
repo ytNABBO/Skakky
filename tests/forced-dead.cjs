@@ -407,3 +407,44 @@ for (const [from, to] of [['h4', 'g4'], ['b1', 'a1'], ['g4', 'f4']]) {
 assert.equal(openWall.evaluate('currentPosition[4][5]'), 'K');
 assert.equal(openWall.evaluate('gameResult'), null, 'Removing the f5 pawn permits a capture that leaves the game active.');
 console.log('PASS: pawn walls can be dead when every breach stalemates, while an active breach keeps the game playable.');
+
+// Ambrona's position 14 adds a mobile bishop to the pawn wall.
+const { b1: blackKing, ...pawnWall } = stalemateWall;
+const bishopWall = { ...pawnWall, f1: blackKing, g1: 'b' };
+const reflectedBishopWall = Object.fromEntries(Object.entries(bishopWall).map(([square, piece]) =>
+    [square[0] + (9 - Number(square[1])), piece === piece.toUpperCase() ? piece.toLowerCase() : piece.toUpperCase()]));
+for (const [pieces, player] of [[bishopWall, 'black'], [reflectedBishopWall, 'white']]) {
+    const game = harness(pieces, player);
+    prove(game, true);
+    proveCannotMate(game, player, true);
+}
+
+const { f3: approachingPawn, ...unclosedBishopWall } = bishopWall;
+const closingBishopWall = harness({ ...unclosedBishopWall, f2: approachingPawn });
+closingBishopWall.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(closingBishopWall.evaluate('gameResult'), null);
+const closedBishopPosition = JSON.parse(closingBishopWall.evaluate('JSON.stringify(currentPosition)'));
+closedBishopPosition[6][5] = '';
+closedBishopPosition[5][5] = 'P';
+assert.equal(closingBishopWall.move('f2', 'f3'), true);
+assert.equal(closingBishopWall.evaluate('gameResult'), 'Draw by dead position.');
+assert.equal(closingBishopWall.evaluate('JSON.stringify(currentPosition)'), JSON.stringify(closedBishopPosition));
+assert.deepEqual(JSON.parse(closingBishopWall.evaluate('JSON.stringify(moveHistory)')),
+    [{ number: 1, player: 'white', notation: 'f3' }]);
+
+const breakableBishopWall = { ...bishopWall };
+delete breakableBishopWall.f5;
+const openBishopWall = harness(breakableBishopWall, 'black');
+prove(openBishopWall, false);
+openBishopWall.evaluate('recordCurrentPosition(); renderBoard();');
+for (const [from, to] of [['f1', 'e1'], ['h4', 'g4'], ['e1', 'd1'], ['g4', 'f4']]) {
+    assert.equal(openBishopWall.move(from, to), true);
+}
+assert.equal(openBishopWall.evaluate('gameResult'), null, 'The breach must leave the game active.');
+
+const matingBishopWall = harness({ ...pawnWall, h2: 'k', e5: 'b' }, 'black');
+prove(matingBishopWall, false);
+matingBishopWall.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(matingBishopWall.move('e5', 'f6'), true);
+assert.equal(matingBishopWall.evaluate('gameResult'), 'Checkmate. Black wins.');
+console.log('PASS: a mobile bishop can inhabit a dead pawn wall, while a live breach or bishop mate keeps play active.');

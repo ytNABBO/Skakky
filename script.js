@@ -64,6 +64,7 @@ const drawRepetitionLimit = 5;
 const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
 const lockedPawnStateLimit = 256;
+const lockedPawnBishopStateLimit = 6144;
 const positionOccurrences = new Map();
 const moveHistory = [];
 let drawClaimMovesCache = null;
@@ -776,8 +777,8 @@ function isDeadByPawnBlockade(position, enPassantState = null, playerToMove = nu
 
     const kingRegions = { white: getKingRegion("white"), black: getKingRegion("black") };
     if (kingRegions.white === null || kingRegions.black === null) {
-        return playerToMove !== null && bishops.length === 0 && knights.length === 0
-            && isDeadByLockedPawnContinuations(position, kings, pawnAttacks, playerToMove);
+        return playerToMove !== null && bishops.length <= 1 && knights.length === 0
+            && isDeadByLockedPawnContinuations(position, kings, bishops[0], pawnAttacks, playerToMove);
     }
 
     for (const bishop of bishops) {
@@ -844,53 +845,89 @@ function isDeadByPawnBlockade(position, enPassantState = null, playerToMove = nu
     return true;
 }
 
-// With every pawn locked, track both kings until a king captures a pawn.
-function isDeadByLockedPawnContinuations(position, kings, pawnAttacks, playerToMove) {
-    function kingDestinations(player, [row, column], [enemyRow, enemyColumn]) {
-        const ownPawn = player === "white" ? "P" : "p";
-        const opponent = oppositePlayer(player);
-        const destinations = [];
-        for (const [dr, dc] of adjacentOffsets) {
-            const nextRow = row + dr;
-            const nextColumn = column + dc;
-            if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) continue;
-            if (Math.abs(nextRow - enemyRow) <= 1 && Math.abs(nextColumn - enemyColumn) <= 1) continue;
-            if (position[nextRow][nextColumn] === ownPawn || pawnAttacks[opponent].has(nextRow * 8 + nextColumn)) continue;
-            destinations.push([nextRow, nextColumn]);
-        }
-        return destinations;
+// Track the kings and an optional bishop while the pawn structure stays fixed.
+function isDeadByLockedPawnContinuations(position, kings, bishop, pawnAttacks, playerToMove) {
+    function placePiece(square, piece) {
+        currentPosition[Math.floor(square / 8)][square % 8] = piece;
     }
 
-    function stateKey({ white, black, player }) {
-        return `${white.join(",")}:${black.join(",")}:${player}`;
+    function stateKey({ white, black, bishop, player }) {
+        return `${white}:${black}:${bishop}:${player}`;
     }
 
-    // Quiet king moves leave pawn attacks fixed and keep the kings apart.
-    const initial = { white: kings.white[0], black: kings.black[0], player: playerToMove };
+    const initial = {
+        white: kings.white[0][0] * 8 + kings.white[0][1],
+        black: kings.black[0][0] * 8 + kings.black[0][1],
+        bishop: bishop ? bishop.row * 8 + bishop.column : null,
+        player: playerToMove
+    };
+    const bishopPlayer = bishop?.player;
+    const bishopPiece = bishopPlayer === "white" ? "B" : "b";
+    const stateLimit = bishop ? lockedPawnBishopStateLimit : lockedPawnStateLimit;
     const queue = [initial];
     const visited = new Set([stateKey(initial)]);
-    for (let index = 0; index < queue.length; index++) {
-        const state = queue[index];
-        const { player } = state;
-        const opponent = oppositePlayer(player);
-        for (const destination of kingDestinations(player, state[player], state[opponent])) {
-            const [row, column] = destination;
-            if (position[row][column].toLowerCase() === "p") {
-                // The capturing king replaces the pawn as a blocker. The defender's pawns
-                // stay locked, and the capturer's pawn attacks stay fixed. No king reply means stalemate.
-                if (kingDestinations(opponent, state[opponent], destination).length > 0) return false;
-                continue;
-            }
+    const original = copyPosition();
+    const savedEnPassant = enPassant;
+    const pawnPosition = position.map(rank => rank.map(piece => piece.toLowerCase() === "p" ? piece : ""));
+    try {
+        // The blockade check has already ruled out an en passant capture.
+        enPassant = null;
+        pawnPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+        for (let index = 0; index < queue.length; index++) {
+            const state = queue[index];
+            const { player } = state;
+            const opponent = oppositePlayer(player);
+            // A pawn capture of the bishop could open the wall, so leave that case unproved.
+            if (state.bishop !== null && player !== bishopPlayer && pawnAttacks[player].has(state.bishop)) return false;
 
-            const next = { ...state, [player]: destination, player: opponent };
-            const key = stateKey(next);
-            if (visited.has(key)) continue;
-            if (visited.size >= lockedPawnStateLimit) return false;
-            visited.add(key);
-            queue.push(next);
+            placePiece(state.white, "K");
+            placePiece(state.black, "k");
+            if (state.bishop !== null) placePiece(state.bishop, bishopPiece);
+
+            const sources = [state[player]];
+            if (state.bishop !== null && player === bishopPlayer) sources.push(state.bishop);
+            let hasMove = false;
+            for (const square of sources) {
+                const row = Math.floor(square / 8);
+                const column = square % 8;
+                const piece = currentPosition[row][column];
+                const { moves, captures } = getLegalMoveOptions(row, column);
+                for (const destination of [...moves, ...captures]) {
+                    hasMove = true;
+                    const toRow = 8 - Number(destination[1]);
+                    const toColumn = files.indexOf(destination[0]);
+                    const target = currentPosition[toRow][toColumn];
+                    if (target.toLowerCase() === "p") {
+                        // A change to the pawn structure is safe only if it immediately stalemates.
+                        movePieceOnBoard(currentPosition, row, column, toRow, toColumn, piece);
+                        if (findCheckedKing(currentPosition, opponent) !== null || hasLegalMove(opponent)) return false;
+                        currentPosition[row][column] = piece;
+                        currentPosition[toRow][toColumn] = target;
+                        continue;
+                    }
+
+                    const destinationSquare = toRow * 8 + toColumn;
+                    const pieceKey = square === state.bishop ? "bishop" : player;
+                    const next = { ...state, [pieceKey]: destinationSquare, player: opponent };
+                    if (destinationSquare === state.bishop) next.bishop = null;
+                    const key = stateKey(next);
+                    if (visited.has(key)) continue;
+                    if (visited.size >= stateLimit) return false;
+                    visited.add(key);
+                    queue.push(next);
+                }
+            }
+            if (!hasMove && findCheckedKing(currentPosition, player) !== null) return false;
+
+            placePiece(state.white, "");
+            placePiece(state.black, "");
+            if (state.bishop !== null) placePiece(state.bishop, "");
         }
+        return true;
+    } finally {
+        original.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+        enPassant = savedEnPassant;
     }
-    return true;
 }
 
 // Prove no continuation reaches a mate by the specified player, or by either player.
