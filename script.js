@@ -196,6 +196,8 @@ function completeClockMove(player) {
     chessClock.remaining[player] += chessClock.increment;
     chessClock.activePlayer = currentPlayer;
     renderClocks();
+    // The next player gets a fresh timestamp after the move updates finish.
+    chessClock.lastTimestamp = performance.now();
 }
 
 // Convert piece codes into colors and accessible square labels.
@@ -1317,7 +1319,6 @@ function movePiece(row, column, promotion = null) {
     currentPlayer = currentPlayer === "white" ? "black" : "white";
     recordCurrentPosition();
     renderBoard();
-    completeClockMove(movingColor);
     const checkSuffix = gameResult?.startsWith("Checkmate.") ? "#"
         : findCheckedKing(currentPosition, currentPlayer) !== null ? "+" : "";
     const offerSuffix = drawOfferedBy === movingColor ? " (=)" : "";
@@ -1347,6 +1348,7 @@ function movePiece(row, column, promotion = null) {
     } else {
         nextPiece?.focus();
     }
+    completeClockMove(movingColor);
     return true;
 }
 

@@ -168,6 +168,34 @@ console.log('PASS: untimed default, all time controls, White starts, delayed tic
 {
     const game = harness();
     game.start();
+    for (const id of ['board', 'move-history-body']) {
+        const element = game.get(id);
+        const replaceChildren = element.replaceChildren;
+        element.replaceChildren = (...children) => {
+            game.advance(750, false);
+            replaceChildren(...children);
+        };
+    }
+
+    game.advance(1000, false);
+    game.move('e2', 'e4');
+    assert.equal(game.remaining('white'), 181000, 'White pays for thinking time and receives the increment.');
+    assert.equal(game.active(), 'black');
+    game.advance(500);
+    assert.equal(game.remaining('black'), 179500, 'Black pays only for time after the move is ready.');
+
+    game.advance(750, false);
+    game.move('e7', 'e5');
+    assert.equal(game.remaining('black'), 180750, 'Black pays for thinking time and receives the increment.');
+    assert.equal(game.active(), 'white');
+    game.advance(500);
+    assert.equal(game.remaining('white'), 180500, 'White also receives the full remaining time at handover.');
+}
+console.log('PASS: synchronous board and move-list updates consume neither player’s time on a completed move.');
+
+{
+    const game = harness();
+    game.start();
     game.advance(1000, false);
     game.move('e2', 'e5');
     assert.equal(game.active(), 'white', 'An illegal destination cannot switch clocks.');
