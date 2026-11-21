@@ -971,6 +971,7 @@ function resign(player = currentPlayer) {
         ? "Draw on resignation: the opponent cannot checkmate."
         : `${player === "white" ? "White" : "Black"} resigns. ${winner} wins.`;
     renderBoard();
+    if (resignationDialog.open) resignationDialog.close("resign");
     turn.focus();
     return true;
 }
@@ -1495,14 +1496,22 @@ resignButton.addEventListener("click", () => {
     resignationDialog.showModal();
 });
 
-resignationDialog.addEventListener("close", () => {
-    const wasPending = pendingResignation;
+resignationDialog.addEventListener("submit", (event) => {
+    if (!resignationDialog.open || !pendingResignation || event.submitter?.value !== "resign") return;
+
+    // Settle the clock and record the resignation as soon as it is submitted.
+    event.preventDefault();
     pendingResignation = false;
-    if (wasPending && resignationDialog.returnValue === "resign") {
-        if (!resign(resigningPlayerSelect.value) && gameResult === null) resignButton.focus();
-    } else if (wasPending) {
-        resignButton.focus();
+    if (!resign(resigningPlayerSelect.value) && resignationDialog.open) {
+        resignationDialog.close();
+        if (gameResult === null) resignButton.focus();
     }
+});
+
+resignationDialog.addEventListener("close", () => {
+    if (resignationDialog.open || !pendingResignation) return;
+    pendingResignation = false;
+    resignButton.focus();
 });
 
 newGameButton.addEventListener("click", () => {

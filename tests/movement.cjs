@@ -13,9 +13,14 @@ function createElement() {
         dataset: {},
         classList: { add() {}, remove() {} },
         addEventListener(type, callback) { listeners[type] = callback; },
-        dispatch(type) { listeners[type]?.(); },
+        dispatch(type, event) { listeners[type]?.(event); },
         showModal() { this.open = true; },
         close(value) { this.open = false; this.returnValue = value; listeners.close?.(); },
+        submit(value) {
+            let prevented = false;
+            this.dispatch('submit', { submitter: { value }, preventDefault() { prevented = true; } });
+            if (!prevented) this.close(value);
+        },
         setAttribute() {},
         appendChild() {},
         replaceChildren() {},
@@ -498,13 +503,13 @@ for (const player of ['white', 'black']) {
     assert.equal(playMove(player === 'white' ? 'd1' : 'd8', player === 'white' ? 'd2' : 'd7'), false);
     assert.equal(vm.runInContext('toggleDrawOffer()', context), false);
     assert.equal(vm.runInContext('resign()', context), false, 'Confirmation must precede resignation.');
-    vm.runInContext('resignationDialog.close("cancel")', context);
+    vm.runInContext('resignationDialog.submit("cancel")', context);
     assert.equal(vm.runInContext(repetitionSnapshot, context), beforeResignation);
     assert.equal(vm.runInContext('gameResult', context), null);
     // Escape closes a dialog without a confirmation value.
     vm.runInContext('resignButton.dispatch("click"); resignationDialog.close("");', context);
     assert.equal(vm.runInContext('gameResult', context), null);
-    vm.runInContext('resignButton.dispatch("click"); resignationDialog.close("resign");', context);
+    vm.runInContext('resignButton.dispatch("click"); resignationDialog.submit("resign");', context);
     const expected = player === 'white' ? 'White resigns. Black wins.' : 'Black resigns. White wins.';
     assert.equal(turnMessage(player), expected);
     assert.equal(vm.runInContext(repetitionSnapshot, context), beforeResignation);
@@ -549,7 +554,7 @@ for (const [pieces, heavyPieceSide, bishopSide, win] of [
         assert.equal(vm.runInContext('gameResult', context), null, 'The side with a rook or queen can still checkmate.');
         const before = vm.runInContext(resignationPositionState, context);
         context.testResigningPlayer = resigningPlayer;
-        vm.runInContext('resignButton.dispatch("click"); resigningPlayerSelect.value = testResigningPlayer; resignationDialog.close("resign");', context);
+        vm.runInContext('resignButton.dispatch("click"); resigningPlayerSelect.value = testResigningPlayer; resignationDialog.submit("resign");', context);
         assert.equal(vm.runInContext('turn.textContent', context), result);
         assert.equal(vm.runInContext(resignationPositionState, context), before);
     }
@@ -621,7 +626,7 @@ for (const activePlayer of ['white', 'black']) {
     vm.runInContext('resigningPlayerSelect.value = testResigningPlayer;', context);
     assert.equal(vm.runInContext('resign(testResigningPlayer)', context), false,
         'Choosing the other side must not bypass the pending confirmation.');
-    vm.runInContext('resignationDialog.close("cancel")', context);
+    vm.runInContext('resignationDialog.submit("cancel")', context);
     assert.equal(vm.runInContext('gameResult', context), null);
     assert.equal(vm.runInContext(resignationPositionState, context), before);
 
@@ -634,7 +639,7 @@ for (const activePlayer of ['white', 'black']) {
 
     vm.runInContext('resignButton.dispatch("click")', context);
     assert.equal(vm.runInContext('resigningPlayerSelect.value', context), activePlayer);
-    vm.runInContext('resigningPlayerSelect.value = testResigningPlayer; resignationDialog.close("resign");', context);
+    vm.runInContext('resigningPlayerSelect.value = testResigningPlayer; resignationDialog.submit("resign");', context);
     assert.equal(vm.runInContext('turn.textContent', context),
         activePlayer === 'white' ? 'Black resigns. White wins.' : 'White resigns. Black wins.');
     assert.equal(vm.runInContext(resignationPositionState, context), before);

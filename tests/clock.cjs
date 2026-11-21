@@ -405,7 +405,7 @@ for (const player of ['white', 'black']) {
     assert.equal(game.get('resigning-player').value, player, 'Reopening resets the choice to the player to move.');
     game.get('resigning-player').value = other;
     game.advance(800, false);
-    game.get('resignation').close('resign');
+    game.get('resignation').submit('resign');
     assert.equal(game.result(), other === 'white' ? 'White resigns. Black wins.' : 'Black resigns. White wins.');
     assert.equal(game.evaluate(actualState), before, 'Resigning out of turn leaves the real turn and position unchanged.');
     assert.equal(game.remaining(player), 298000, 'Confirmation settles only the active player clock.');
@@ -414,21 +414,32 @@ for (const player of ['white', 'black']) {
     assert.equal(game.timers(), 0);
 }
 
-{
-    const game = harness();
+for (const beforeFlag of [true, false]) {
+    const closeEvents = [];
+    const game = harness(callback => closeEvents.push(callback));
     game.start('300+0');
     game.get('resign').click();
     game.get('resigning-player').value = 'black';
-    game.advance(300000, false);
-    game.get('resignation').close('resign');
-    assert.equal(game.result(), 'White ran out of time. Black wins.',
-        'An expired active clock takes precedence over a late resignation by the waiting player.');
+    const dialog = game.get('resignation');
+    assert.equal(dialog.open, true);
+    const close = dialog.close;
+    dialog.close = value => {
+        game.advance(1, false);
+        close(value);
+    };
+    game.advance(beforeFlag ? 299999 : 300000, false);
+    dialog.submit('resign');
+    assert.equal(dialog.open, false);
+    assert.equal(closeEvents.length, 1);
+
+    game.advance(1);
+    closeEvents.shift()();
+    assert.equal(game.result(), beforeFlag ? 'Black resigns. White wins.' : 'White ran out of time. Black wins.');
+    assert.equal(game.remaining('white'), beforeFlag ? 1 : 0);
     assert.equal(game.active(), null);
     assert.equal(game.timers(), 0);
-    game.get('resignation').close('resign');
-    assert.equal(game.result(), 'White ran out of time. Black wins.');
 }
-console.log('PASS: either player can resign without changing the running clock; cancellation and timeout precedence remain correct.');
+console.log('PASS: off-turn resignations settle the active clock at submission, even when closing the dialog crosses flag fall.');
 
 for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', 'forced-line', 'branching-line', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
@@ -513,7 +524,7 @@ for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-
     } else if (ending === 'resignation') {
         game.get('resign').click();
         game.advance(1500, false);
-        game.get('resignation').close('resign');
+        game.get('resignation').submit('resign');
         assert.equal(game.result(), 'White resigns. Black wins.');
     } else if (ending === 'claim') {
         game.evaluate('halfmoveClock = 100; renderBoard();');
