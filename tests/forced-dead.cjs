@@ -342,3 +342,30 @@ const materialException = harness({ a1: 'K', b2: 'Q', h8: 'k' });
 proveCannotMate(materialException, 'black', true, 0, 1);
 proveCannotMate(materialException, 'white', false, 0, 1);
 console.log('PASS: cooperation and uncertain branches remain losses on resignation while existing material exceptions remain draws.');
+
+for (const defender of ['r', 'q']) {
+    for (const bishopSquare of ['b2', 'c3']) {
+        const game = harness({ a1: 'k', a2: defender, c1: 'K', [bishopSquare]: 'B' }, 'black');
+        assert.notEqual(game.evaluate('findCheckedKing(currentPosition, "black")'), null);
+        assert(game.moves().includes('a2-b2'), 'The defending piece can capture the bishop or block the check.');
+        proveCannotMate(game, 'white', true, 0, 1);
+        prove(game, false, 0, 1);
+    }
+}
+const sameColorBishops = harness({ c3: 'K', d3: 'B', f3: 'B', h8: 'k', a8: 'r', a7: 'q', e6: 'b' }, 'black');
+proveCannotMate(sameColorBishops, 'white', true, 0, 1);
+proveCannotMate(sameColorBishops, 'black', false, 0, 1);
+
+for (const blocker of ['b', 'n', 'p']) {
+    const game = harness({ f7: 'K', f8: 'B', h8: 'k', h7: blocker });
+    proveCannotMate(game, 'white', false, 0, 1);
+    game.evaluate('recordCurrentPosition(); renderBoard();');
+    assert.equal(game.evaluate(`
+        selectedSquare = document.createElement('button'); selectedSquare.dataset.position = 'f8';
+        movePiece(1, 6);
+    `), true);
+    assert.equal(game.evaluate('gameResult'), 'Checkmate. White wins.');
+}
+const oppositeColorBishops = harness({ c3: 'K', d3: 'B', f4: 'B', h8: 'k', a8: 'r' }, 'black');
+proveCannotMate(oppositeColorBishops, 'white', false, 0, 1);
+console.log('PASS: bishop mating potential accounts for rook and queen defenses, bishop square colors and blockers that permit mate.');

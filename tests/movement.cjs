@@ -515,7 +515,7 @@ for (const player of ['white', 'black']) {
 for (const [pieces, player, drawn] of [
     [{ a1: 'K', b2: 'Q', h8: 'k' }, 'white', true],
     [{ a1: 'K', h8: 'k', g6: 'n', b2: 'Q' }, 'white', true],
-    [{ a1: 'K', h8: 'k', f8: 'b', b2: 'Q' }, 'white', false],
+    [{ a1: 'K', h8: 'k', f8: 'b', d1: 'Q' }, 'white', true],
     [{ a1: 'K', h8: 'k', g6: 'n', b2: 'R' }, 'white', false],
     [{ a1: 'K', h8: 'k', g6: 'n', b2: 'P' }, 'white', false],
     [{ a1: 'K', h8: 'k', g6: 'n', f6: 'n' }, 'white', false],
@@ -538,6 +538,24 @@ assert.equal(vm.runInContext('resign()', context), false, 'A finished game canno
 console.log('PASS: resignation confirmation, cancellation, state preservation, both colors, mating-material exceptions and finished-game guards.');
 
 const resignationPositionState = 'JSON.stringify([currentPosition, currentPlayer, enPassant, castlingRights, halfmoveClock, movesPlayed, Array.from(positionOccurrences)])';
+for (const [pieces, heavyPieceSide, bishopSide, win] of [
+    [{ b6: 'K', d7: 'R', a8: 'k', f8: 'b' }, 'white', 'black', 'Black resigns. White wins.'],
+    [{ a1: 'K', f1: 'B', d3: 'B', c3: 'k', d2: 'q', h8: 'r', c4: 'b' }, 'black', 'white', 'White resigns. Black wins.']
+]) {
+    for (const [resigningPlayer, result] of [
+        [heavyPieceSide, 'Draw on resignation: the opponent cannot checkmate.'], [bishopSide, win]
+    ]) {
+        prepareResignation(pieces, heavyPieceSide);
+        assert.equal(vm.runInContext('gameResult', context), null, 'The side with a rook or queen can still checkmate.');
+        const before = vm.runInContext(resignationPositionState, context);
+        context.testResigningPlayer = resigningPlayer;
+        vm.runInContext('resignButton.dispatch("click"); resigningPlayerSelect.value = testResigningPlayer; resignationDialog.close("resign");', context);
+        assert.equal(vm.runInContext('turn.textContent', context), result);
+        assert.equal(vm.runInContext(resignationPositionState, context), before);
+    }
+}
+console.log('PASS: same-color bishops draw against rook or queen material on resignation; the reverse resignation awards a win.');
+
 const ordinaryResignationPosition = { e1: 'K', d1: 'Q', e8: 'k', d8: 'q' };
 for (const [activePlayer, resigningPlayer, expectedResult] of [
     ['white', 'black', 'Black resigns. White wins.'],

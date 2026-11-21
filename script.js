@@ -1001,8 +1001,10 @@ function cannotMateByMaterial(position, player) {
         // Enemy pawns and minor pieces can help form a mating net.
         return opponent.every(kind => kind === "q");
     }
+    // Same-color bishops give a single check. At least one square beside its diagonal
+    // is safe from the attacking king, and a rook or queen there can block or capture.
     return own.every(kind => kind === "b")
-        && opponent.every(kind => kind === "b")
+        && opponent.every(kind => kind === "b" || kind === "r" || kind === "q")
         && bishops.every(color => color === bishops[0]);
 }
 

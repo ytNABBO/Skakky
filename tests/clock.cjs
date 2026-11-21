@@ -245,6 +245,28 @@ for (const [pieces, drawn] of [
     assert.equal(game.result(), drawn ? 'Draw on time: the opponent cannot checkmate.' : 'White ran out of time. Black wins.');
 }
 
+for (const [pieces, heavyPieceSide, bishopSide, loss] of [
+    [{ b6: 'K', d7: 'R', a8: 'k', f8: 'b' }, 'white', 'black', 'Black ran out of time. White wins.'],
+    [{ a1: 'K', f1: 'B', d3: 'B', c3: 'k', d2: 'q', h8: 'r', c4: 'b' }, 'black', 'white', 'White ran out of time. Black wins.']
+]) {
+    for (const [flaggingPlayer, result] of [
+        [heavyPieceSide, 'Draw on time: the opponent cannot checkmate.'], [bishopSide, loss]
+    ]) {
+        const game = harness();
+        game.start('300+0');
+        if (flaggingPlayer === 'black') game.move('e2', 'e4');
+        game.fixture(pieces, flaggingPlayer);
+        assert.equal(game.evaluate('gameResult'), null, 'The side with a rook or queen can still checkmate.');
+        assert.equal(game.active(), flaggingPlayer);
+        game.advance(300001);
+        assert.equal(game.result(), result);
+        assert.equal(game.remaining(flaggingPlayer), 0);
+        assert.equal(game.active(), null);
+        assert.equal(game.timers(), 0);
+    }
+}
+console.log('PASS: same-color bishops draw against rook or queen material on time; the reverse flag awards a win.');
+
 // A player can flag while their only legal move would mate the opponent.
 // The opponent then has no mating continuation despite having substantial material.
 const forcedWinningPosition = { a1: 'K', b2: 'R', c5: 'N', d3: 'N', a3: 'k', a2: 'r', d2: 'n' };

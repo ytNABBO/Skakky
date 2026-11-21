@@ -65,7 +65,7 @@ Rules are checked against the [FIDE Laws of Chess](https://handbook.fide.com/cha
 
 Either player may resign, including during the opponent's turn. Press **Resign**, choose **White** or **Black** in **Resigning player**, then confirm. The dialog defaults to the player to move each time it opens. Cancellation or Escape keeps the game active and restores focus to **Resign**. The active clock continues until confirmation; a timeout that occurs first takes precedence.
 
-Under Article 5.1.2, resignation is a draw when the opponent cannot checkmate. Material checks cover a bare king, a lone knight against only a king or a king and queens, and positions containing only kings and bishops on one square color. Two knights can give mate with cooperation and do not automatically imply a draw.
+Under Articles 5.1.2 and 6.9, resignation or a timeout is a draw when the opponent cannot checkmate. Material checks cover a bare king and a lone knight against a king with any number of queens. A side with only a king and bishops also cannot mate if every bishop on the board occupies the same square color and the opponent's other pieces are only rooks or queens. The side with rooks or queens can still have mating chances, so play continues until a game-ending event. Two knights can give mate with cooperation.
 
 Automatic dead-position draws also cover kings-and-pawns positions where every pawn is blocked by a pawn, no pawn captures are available and neither king can ever reach an enemy pawn. This proves that neither side can create checkmate (Article 5.2.2), even though both kings can still move. A double pawn move can complete the blockade immediately when no adjacent opposing pawn can capture en passant; an unusable en passant marker does not postpone the draw.
 
