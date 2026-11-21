@@ -1532,18 +1532,22 @@ newGameButton.addEventListener("click", () => {
     newGameDialog.showModal();
 });
 
+newGameDialog.addEventListener("submit", (event) => {
+    if (!newGameDialog.open || !pendingNewGame || event.submitter?.value !== "start") return;
+
+    event.preventDefault();
+    // A newly expired clock clears the pending restart. A finished game can still restart.
+    syncChessClock();
+    if (pendingNewGame) startNewGame();
+});
+
 newGameDialog.addEventListener("close", () => {
     // A timeout can queue a close event before the dialog is reopened.
     if (newGameDialog.open || !pendingNewGame) return;
-    // An overdue clock invalidates this confirmation before the pending flag is consumed.
     syncChessClock();
     if (!pendingNewGame) return;
     pendingNewGame = false;
-    if (newGameDialog.returnValue === "start") {
-        startNewGame();
-    } else {
-        newGameButton.focus();
-    }
+    newGameButton.focus();
 });
 
 startClockButton.addEventListener("click", startChessClock);

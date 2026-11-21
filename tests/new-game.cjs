@@ -29,7 +29,7 @@ function harness(scheduleClose = callback => callback()) {
                 contains(name) { return classes.has(name); }
             },
             addEventListener(type, listener) { listeners.set(type, listener); },
-            dispatch(type) { listeners.get(type)?.(); },
+            dispatch(type, event) { listeners.get(type)?.(event); },
             click() { if (!this.disabled) listeners.get('click')?.(); },
             setAttribute(name, value) { this.attributes[name] = String(value); },
             appendChild(child) { this.children.push(child); },
@@ -40,6 +40,11 @@ function harness(scheduleClose = callback => callback()) {
                 this.open = false;
                 this.returnValue = value;
                 scheduleClose(() => this.dispatch('close'));
+            },
+            submit(value) {
+                let prevented = false;
+                this.dispatch('submit', { submitter: { value }, preventDefault() { prevented = true; } });
+                if (!prevented) this.close(value);
             },
             querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; },
             querySelectorAll(selector) {
@@ -175,7 +180,7 @@ function assertFreshGame(game) {
     assert.equal(game.get('draw-claim').open, false);
     assert.equal(game.evaluate('toggleDrawOffer()'), false);
     assert.equal(game.evaluate('resign("black")'), false);
-    game.get('new-game-dialog').close('cancel');
+    game.get('new-game-dialog').submit('cancel');
     assert.equal(game.evaluate(ruleSnapshot), before, 'Cancelling must retain the existing game exactly.');
     assert.equal(game.evaluate('document.activeElement === newGameButton'), true);
     game.get('new-game').click();
@@ -188,7 +193,7 @@ function assertFreshGame(game) {
     const history = game.evaluate('moveHistory');
     game.advance(120000);
     game.get('new-game').click();
-    game.get('new-game-dialog').close('start');
+    game.get('new-game-dialog').submit('start');
     assertFreshGame(game);
     assert.equal(game.evaluate('currentPosition'), board);
     for (let row = 0; row < 8; row++) assert.equal(game.evaluate(`currentPosition[${row}]`), ranks[row]);
@@ -207,14 +212,14 @@ console.log('PASS: cancellation and confirmation preserve or reset real moves, r
     assert.equal(game.evaluate('respondToDrawOffer(true)'), false);
     assert.equal(game.evaluate('respondToDrawOffer(false)'), false);
     assert.equal(game.evaluate('drawOfferedBy'), 'black');
-    game.get('new-game-dialog').close('cancel');
+    game.get('new-game-dialog').submit('cancel');
     assert.equal(game.evaluate('respondToDrawOffer(false)'), true);
 }
 {
     const game = harness();
     game.get('new-game').click();
     assert.equal(game.startClock(), false, 'Clock setup cannot start while the new-game decision is pending.');
-    game.get('new-game-dialog').close('cancel');
+    game.get('new-game-dialog').submit('cancel');
     assert.equal(game.startClock(), true);
 }
 console.log('PASS: pending new-game confirmation blocks draw responses and clock setup until dismissed.');
@@ -235,7 +240,7 @@ for (const ending of ['resignation', 'checkmate', 'agreement']) {
     assert.notEqual(game.evaluate('gameResult'), null);
     game.get('new-game').click();
     assert.equal(game.get('new-game-dialog').open, true, 'Finished games must still allow starting again.');
-    game.get('new-game-dialog').close('start');
+    game.get('new-game-dialog').submit('start');
     assertFreshGame(game);
 }
 console.log('PASS: resignation, mate and agreed-draw results can restart without reloading.');
@@ -248,7 +253,7 @@ console.log('PASS: resignation, mate and agreed-draw results can restart without
     const before = game.evaluate(ruleSnapshot);
     game.get('new-game').click();
     game.advance(1500, false);
-    game.get('new-game-dialog').close('cancel');
+    game.get('new-game-dialog').submit('cancel');
     assert.equal(game.evaluate(ruleSnapshot), before);
     assert.equal(game.evaluate('chessClock.remaining.white'), 178500, 'Cancelling must charge time spent deciding.');
     game.get('new-game').click();
@@ -256,7 +261,7 @@ console.log('PASS: resignation, mate and agreed-draw results can restart without
     game.get('new-game-dialog').close('');
     assert.equal(game.evaluate('chessClock.remaining.white'), 178000);
     game.get('new-game').click();
-    game.get('new-game-dialog').close('start');
+    game.get('new-game-dialog').submit('start');
     assertFreshGame(game);
     assert.equal(oldClock.activePlayer, null);
     const fresh = game.evaluate(ruleSnapshot);
@@ -274,7 +279,7 @@ for (const tickBeforeConfirmation of [false, true]) {
     assert.equal(game.startClock('300+0'), true);
     game.get('new-game').click();
     game.advance(300001, tickBeforeConfirmation);
-    if (!tickBeforeConfirmation) game.get('new-game-dialog').close('start');
+    if (!tickBeforeConfirmation) game.get('new-game-dialog').submit('start');
     assert.equal(game.get('new-game-dialog').open, false);
     assert.equal(game.evaluate('pendingNewGame'), false);
     assert.equal(game.get('turn').textContent, 'White ran out of time. Black wins.',
@@ -283,10 +288,46 @@ for (const tickBeforeConfirmation of [false, true]) {
     assert.equal(game.get('turn').textContent, 'White ran out of time. Black wins.', 'A stale close event must not discard the timeout result.');
     game.get('new-game').click();
     assert.equal(game.get('new-game-dialog').open, true);
-    game.get('new-game-dialog').close('start');
+    game.get('new-game-dialog').submit('start');
     assertFreshGame(game);
 }
 console.log('PASS: timed decisions keep running; reset clears old intervals and delayed or stale confirmations cannot erase a timeout.');
+
+for (const beforeFlag of [true, false]) {
+    const closeEvents = [];
+    const game = harness(callback => closeEvents.push(callback));
+    assert.equal(game.startClock('300+0'), true);
+    assert.equal(game.move('e2', 'e4'), true);
+    assert.equal(game.move('e7', 'e5'), true);
+    const oldClock = game.evaluate('chessClock');
+    const dialog = game.get('new-game-dialog');
+    game.get('new-game').click();
+    assert.equal(dialog.open, true);
+    const close = dialog.close.bind(dialog);
+    dialog.close = value => {
+        game.advance(1, false);
+        close(value);
+    };
+
+    game.advance(beforeFlag ? 299999 : 300000, false);
+    dialog.submit('start');
+    assert.equal(dialog.open, false);
+    assert.equal(closeEvents.length, 1);
+    assert.equal(oldClock.remaining.white, beforeFlag ? 1 : 0);
+    assert.equal(oldClock.activePlayer, null);
+    assert.equal(game.evaluate('movesPlayed'), beforeFlag ? 0 : 2);
+
+    game.advance(1);
+    closeEvents.shift()();
+    if (beforeFlag) {
+        assertFreshGame(game);
+    } else {
+        assert.equal(game.get('turn').textContent, 'White ran out of time. Black wins.');
+        assert.equal(game.evaluate('movesPlayed'), 2);
+        assert.equal(game.timerCount(), 0);
+    }
+}
+console.log('PASS: restart takes effect before flag fall, and confirmation at flag fall preserves the timeout.');
 
 {
     const closeEvents = [];
@@ -303,7 +344,7 @@ console.log('PASS: timed decisions keep running; reset clears old intervals and 
     assert.equal(dialog.open, true);
     closeEvents.shift()();
     assert.equal(game.evaluate('pendingNewGame'), true);
-    dialog.close('start');
+    dialog.submit('start');
     closeEvents.shift()();
     assertFreshGame(game);
 }
