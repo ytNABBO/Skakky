@@ -8,7 +8,7 @@ An interactive chess game built with HTML, CSS and JavaScript.
 
 Open `index.html` in a browser. Select a piece and choose a highlighted square.
 
-The game includes legal moves, checkmate, stalemate, castling, en passant, promotion, draw claims, draw offers, resignation and optional chess clocks. The move list uses FIDE Appendix C notation.
+The game includes legal moves, checkmate, stalemate, castling, en passant, promotion, draw claims, draw offers, resignation and optional chess clocks. Clock presets include Chess.com's popular Bullet, Blitz and Rapid controls, plus 10|5 and 15|5. The move list uses FIDE Appendix C notation.
 
 Use **New game** to reset the board and move list.
 

@@ -14,9 +14,24 @@
         <label for="time-control">Time control</label>
         <select id="time-control" aria-describedby="clock-help">
             <option value="">Untimed</option>
-            <option value="180+2">3 minutes + 2 seconds per move</option>
-            <option value="300+0">5 minutes</option>
-            <option value="600+5">10 minutes + 5 seconds per move</option>
+            <optgroup label="Bullet">
+                <option value="60+0">1|0</option>
+                <option value="120+1">2|1</option>
+            </optgroup>
+            <optgroup label="Blitz">
+                <option value="180+0">3|0</option>
+                <option value="180+2">3|2</option>
+                <option value="300+0">5|0</option>
+            </optgroup>
+            <optgroup label="Rapid">
+                <option value="600+0">10|0</option>
+                <option value="900+10">15|10</option>
+                <option value="1800+0">30|0</option>
+            </optgroup>
+            <optgroup label="Custom rapid">
+                <option value="600+5">10|5</option>
+                <option value="900+5">15|5</option>
+            </optgroup>
         </select>
         <button id="start-clock" class="game-button" type="button" disabled>Start clock</button>
         <p id="clock-help">For a timed game, choose a control and start the clock before the first move. White's time starts immediately.</p>

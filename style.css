@@ -234,6 +234,12 @@ button.square:focus-visible {
     font: inherit;
 }
 
+#clock-setup > label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
 #clock-help {
     font-size: 0.875rem;
     line-height: 1.4;
@@ -247,21 +253,24 @@ button.square:focus-visible {
 
 .clock {
     flex: 1;
-    padding: 10px;
-    border: 2px solid #b58863;
-    border-radius: 6px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background-color: #303030;
+    color: #fff;
+    font-weight: bold;
 }
 
 .clock [role="timer"] {
     display: block;
     margin-top: 4px;
-    font-size: 1.75rem;
+    font-size: clamp(1.75rem, 7vw, 2.5rem);
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
 }
 
 .clock [data-running="true"] {
-    color: #f0d9b5;
-    font-weight: bold;
-    text-decoration: underline;
-    text-underline-offset: 4px;
+    background-color: #81b64c;
+    color: #202020;
+    border-radius: 6px;
+    padding: 3px 6px;
 }

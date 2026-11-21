@@ -4,6 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 // A small interactive DOM exercises the real square and dialog event handlers.
 function harness() {
@@ -129,6 +130,9 @@ function harness() {
 
 {
     const game = harness();
+    const listedControls = [...html.matchAll(/<option value="(\d+\+\d+)">/g)].map(([, value]) => value).sort();
+    const supportedControls = JSON.parse(game.evaluate('JSON.stringify(Object.keys(timeControls))')).sort();
+    assert.deepEqual(listedControls, supportedControls, 'Every listed time control must be supported, and vice versa.');
     assert.equal(game.evaluate('chessClock'), null, 'A new game is untimed.');
     game.advance(500000);
     assert.equal(game.result(), 'White to move');
@@ -141,7 +145,12 @@ function harness() {
     assert.equal(game.evaluate('chessClock'), null, 'Clocks cannot be started halfway through a game.');
 }
 
-for (const [control, initial, increment] of [['180+2', 180000, 2000], ['300+0', 300000, 0], ['600+5', 600000, 5000]]) {
+for (const [control, initial, increment] of [
+    ['60+0', 60000, 0], ['120+1', 120000, 1000], ['180+0', 180000, 0],
+    ['180+2', 180000, 2000], ['300+0', 300000, 0], ['600+0', 600000, 0],
+    ['600+5', 600000, 5000], ['900+5', 900000, 5000], ['900+10', 900000, 10000],
+    ['1800+0', 1800000, 0]
+]) {
     const game = harness();
     game.start(control);
     assert.equal(game.active(), 'white');

@@ -27,9 +27,16 @@ const clockDisplays = {
     black: document.getElementById("black-clock")
 };
 const timeControls = {
+    "60+0": { time: 60000, increment: 0 },
+    "120+1": { time: 120000, increment: 1000 },
+    "180+0": { time: 180000, increment: 0 },
     "180+2": { time: 180000, increment: 2000 },
     "300+0": { time: 300000, increment: 0 },
-    "600+5": { time: 600000, increment: 5000 }
+    "600+0": { time: 600000, increment: 0 },
+    "600+5": { time: 600000, increment: 5000 },
+    "900+5": { time: 900000, increment: 5000 },
+    "900+10": { time: 900000, increment: 10000 },
+    "1800+0": { time: 1800000, increment: 0 }
 };
 let chessClock = null;
 let clockTimer = null;
