@@ -63,6 +63,7 @@ const claimRepetitionLimit = 3;
 const drawRepetitionLimit = 5;
 const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
+const lockedPawnStateLimit = 256;
 const positionOccurrences = new Map();
 const moveHistory = [];
 let drawClaimMovesCache = null;
@@ -691,8 +692,8 @@ function isDeadByMaterial(position) {
     return knightCount === 0 || (knightCount === 1 && bishopSquareColor === null);
 }
 
-// Prove a pawn blockade dead when no piece can break it or ever give check.
-function isDeadByPawnBlockade(position, enPassantState = null) {
+// Prove a pawn blockade dead when it prevents checkmate in every continuation.
+function isDeadByPawnBlockade(position, enPassantState = null, playerToMove = null) {
     if (enPassantState !== null) {
         if (typeof enPassantState !== "object") return false;
         const { pawnRow, column, targetRow } = enPassantState;
@@ -774,7 +775,10 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     }
 
     const kingRegions = { white: getKingRegion("white"), black: getKingRegion("black") };
-    if (kingRegions.white === null || kingRegions.black === null) return false;
+    if (kingRegions.white === null || kingRegions.black === null) {
+        return playerToMove !== null && bishops.length === 0 && knights.length === 0
+            && isDeadByLockedPawnContinuations(position, kings, pawnAttacks, playerToMove);
+    }
 
     for (const bishop of bishops) {
         const opponent = bishop.player === "white" ? "black" : "white";
@@ -840,6 +844,55 @@ function isDeadByPawnBlockade(position, enPassantState = null) {
     return true;
 }
 
+// With every pawn locked, track both kings until a king captures a pawn.
+function isDeadByLockedPawnContinuations(position, kings, pawnAttacks, playerToMove) {
+    function kingDestinations(player, [row, column], [enemyRow, enemyColumn]) {
+        const ownPawn = player === "white" ? "P" : "p";
+        const opponent = oppositePlayer(player);
+        const destinations = [];
+        for (const [dr, dc] of adjacentOffsets) {
+            const nextRow = row + dr;
+            const nextColumn = column + dc;
+            if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) continue;
+            if (Math.abs(nextRow - enemyRow) <= 1 && Math.abs(nextColumn - enemyColumn) <= 1) continue;
+            if (position[nextRow][nextColumn] === ownPawn || pawnAttacks[opponent].has(nextRow * 8 + nextColumn)) continue;
+            destinations.push([nextRow, nextColumn]);
+        }
+        return destinations;
+    }
+
+    function stateKey({ white, black, player }) {
+        return `${white.join(",")}:${black.join(",")}:${player}`;
+    }
+
+    // Quiet king moves leave pawn attacks fixed and keep the kings apart.
+    const initial = { white: kings.white[0], black: kings.black[0], player: playerToMove };
+    const queue = [initial];
+    const visited = new Set([stateKey(initial)]);
+    for (let index = 0; index < queue.length; index++) {
+        const state = queue[index];
+        const { player } = state;
+        const opponent = oppositePlayer(player);
+        for (const destination of kingDestinations(player, state[player], state[opponent])) {
+            const [row, column] = destination;
+            if (position[row][column].toLowerCase() === "p") {
+                // The capturing king replaces the pawn as a blocker. The defender's pawns
+                // stay locked, and the capturer's pawn attacks stay fixed. No king reply means stalemate.
+                if (kingDestinations(opponent, state[opponent], destination).length > 0) return false;
+                continue;
+            }
+
+            const next = { ...state, [player]: destination, player: opponent };
+            const key = stateKey(next);
+            if (visited.has(key)) continue;
+            if (visited.size >= lockedPawnStateLimit) return false;
+            visited.add(key);
+            queue.push(next);
+        }
+    }
+    return true;
+}
+
 // Prove no continuation reaches a mate by the specified player, or by either player.
 function hasNoMatingContinuation(matingPlayer, maxPlies = deadPositionPlyLimit, maxNodes = deadPositionNodeLimit) {
     if (matingPlayer !== null && matingPlayer !== "white" && matingPlayer !== "black") return false;
@@ -886,7 +939,8 @@ function hasNoMatingContinuation(matingPlayer, maxPlies = deadPositionPlyLimit, 
                 || (matingPlayer !== null && currentPlayer === matingPlayer);
         }
         if ((matingPlayer !== null && cannotMateByMaterial(currentPosition, matingPlayer))
-            || isDeadByMaterial(currentPosition) || isDeadByPawnBlockade(currentPosition, enPassant)) return true;
+            || isDeadByMaterial(currentPosition)
+            || isDeadByPawnBlockade(currentPosition, enPassant, depth === 0 ? currentPlayer : null)) return true;
         const key = serializePosition(currentPosition, currentPlayer, castlingRights, enPassant);
         // Close only the current path; every other exit from the cycle must still be checked.
         if (path.has(key)) return true;

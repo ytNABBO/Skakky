@@ -52,6 +52,12 @@ function harness(pieces, player = 'white', ep = null) {
     return {
         evaluate, elements,
         timerCount: () => timers.size,
+        move(from, to) {
+            return evaluate(`
+                selectedSquare = document.createElement('button'); selectedSquare.dataset.position = ${JSON.stringify(from)};
+                movePiece(${8 - Number(to[1])}, ${'abcdefgh'.indexOf(to[0])});
+            `);
+        },
         moves() {
             return Array.from(evaluate(`(() => {
                 const legal = [];
@@ -369,3 +375,35 @@ for (const blocker of ['b', 'n', 'p']) {
 const oppositeColorBishops = harness({ c3: 'K', d3: 'B', f4: 'B', h8: 'k', a8: 'r' }, 'black');
 proveCannotMate(oppositeColorBishops, 'white', false, 0, 1);
 console.log('PASS: bishop mating potential accounts for rook and queen defenses, bishop square colors and blockers that permit mate.');
+
+// In Ambrona's position 16, the only capture through the pawn wall is followed by stalemate.
+const stalemateWall = { b1: 'k', g2: 'P', f3: 'P', g3: 'p', f4: 'p', h4: 'K', f5: 'p', h5: 'P', h6: 'p' };
+const reflectedWall = Object.fromEntries(Object.entries(stalemateWall).map(([square, piece]) =>
+    [square[0] + (9 - Number(square[1])), piece === piece.toUpperCase() ? piece.toLowerCase() : piece.toUpperCase()]));
+for (const [pieces, player, move] of [[stalemateWall, 'white', 'h4-h3'], [reflectedWall, 'black', 'h5-h6']]) {
+    const game = harness(pieces, player);
+    assert.deepEqual(game.moves(), [move]);
+    prove(game, true);
+    proveCannotMate(game, 'white', true);
+    proveCannotMate(game, 'black', true);
+}
+
+const { f5, ...breakableWall } = stalemateWall;
+const closingWall = harness({ ...breakableWall, f6: f5 }, 'black');
+closingWall.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(closingWall.evaluate('gameResult'), null);
+assert.equal(closingWall.move('f6', 'f5'), true);
+assert.equal(closingWall.evaluate('gameResult'), 'Draw by dead position.');
+assert.equal(closingWall.evaluate('moveHistory.length'), 1);
+assert.equal(closingWall.evaluate('currentPosition[6][6]'), 'P', 'The possible king capture must not be played.');
+
+const openWall = harness(breakableWall);
+prove(openWall, false);
+openWall.evaluate('recordCurrentPosition(); renderBoard();');
+assert.equal(openWall.evaluate('gameResult'), null);
+for (const [from, to] of [['h4', 'g4'], ['b1', 'a1'], ['g4', 'f4']]) {
+    assert.equal(openWall.move(from, to), true);
+}
+assert.equal(openWall.evaluate('currentPosition[4][5]'), 'K');
+assert.equal(openWall.evaluate('gameResult'), null, 'Removing the f5 pawn permits a capture that leaves the game active.');
+console.log('PASS: pawn walls can be dead when every breach stalemates, while an active breach keeps the game playable.');
