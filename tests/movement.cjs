@@ -391,7 +391,8 @@ assert.equal(vm.runInContext('canClaimDrawNow("threefold")', context), false);
 assert.deepEqual(Array.from(vm.runInContext('getIntendedDrawClaimMoves("threefold").map(move => move.value)', context)),
     ['f6-g8'], 'Only a move that would restore the same position a third time can be nominated.');
 assert.equal(vm.runInContext('claimDraw("threefold", "f6-e4")', context), false);
-assert.equal(vm.runInContext('claimDraw("threefold", "f6-g8")', context), true);
+vm.runInContext('claimRepetitionButton.dispatch("click"); drawClaimMove.value = "f6-g8"; drawClaimDialog.submit("claim");', context);
+assert.equal(vm.runInContext('drawClaimDialog.open', context), false);
 assert.equal(vm.runInContext('turn.textContent', context), 'Draw claimed by threefold repetition.');
 assert.equal(vm.runInContext(repetitionSnapshot, context), beforeClaim,
     'A prospective claim must leave the board, turn, castling rights and counters unchanged.');

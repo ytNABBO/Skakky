@@ -217,7 +217,9 @@ console.log('PASS: en passant, all promotion choices, no-equals FIDE promotion n
     assert.deepEqual(game.history(), []);
     assert.equal(game.evaluate('claimDraw("fifty", "a1-a3")'), false);
     assert.deepEqual(game.history(), []);
-    assert.equal(game.evaluate('claimDraw("fifty", "b2-b3")'), true);
+    game.evaluate('openDrawClaim("fifty"); drawClaimMove.value = "b2-b3";');
+    game.elements.get('draw-claim').dispatch('submit', { submitter: { value: 'claim' }, preventDefault() {} });
+    assert.equal(game.evaluate('gameResult'), 'Draw claimed under the 50-move rule.');
     assert.deepEqual(game.history(), [], 'An intended-move claim does not play or record its nominated move.');
 }
 {

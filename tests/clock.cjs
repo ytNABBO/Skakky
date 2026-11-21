@@ -441,6 +441,40 @@ for (const beforeFlag of [true, false]) {
 }
 console.log('PASS: off-turn resignations settle the active clock at submission, even when closing the dialog crosses flag fall.');
 
+for (const beforeFlag of [true, false]) {
+    const closeEvents = [];
+    const game = harness(callback => closeEvents.push(callback));
+    game.start('300+0');
+    game.evaluate('halfmoveClock = 99; renderBoard();');
+    game.get('claim-draw').click();
+    const dialog = game.get('draw-claim');
+    assert.equal(dialog.open, true);
+    const movePicker = game.get('draw-claim-move');
+    assert(movePicker.children.some(option => option.value === 'g1-f3'));
+    movePicker.value = 'g1-f3';
+
+    const gameState = 'JSON.stringify([currentPosition, currentPlayer, halfmoveClock, movesPlayed, moveHistory, Array.from(positionOccurrences)])';
+    const before = game.evaluate(gameState);
+    const close = dialog.close;
+    dialog.close = value => {
+        game.advance(1, false);
+        close(value);
+    };
+    game.advance(beforeFlag ? 299999 : 300000, false);
+    dialog.submit('claim');
+    assert.equal(dialog.open, false);
+    assert.equal(closeEvents.length, 1);
+
+    game.advance(1);
+    closeEvents.shift()();
+    assert.equal(game.result(), beforeFlag ? 'Draw claimed under the 50-move rule.' : 'White ran out of time. Black wins.');
+    assert.equal(game.evaluate(gameState), before, 'A nominated move must not be played or recorded.');
+    assert.equal(game.remaining('white'), beforeFlag ? 1 : 0);
+    assert.equal(game.active(), null);
+    assert.equal(game.timers(), 0);
+}
+console.log('PASS: an intended-move draw claim settles the active clock at submission without playing the nominated move.');
+
 for (const ending of ['mate', 'stalemate', 'material', 'pawn-blockade', 'bishop-blockade', 'knight-blockade', 'double-step-blockade', 'forced-line', 'branching-line', '75-move', 'repetition', 'resignation', 'claim', 'agreement']) {
     const game = harness();
     game.start();

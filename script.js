@@ -1079,6 +1079,7 @@ function claimDraw(rule, intendedMove = "") {
 
     declaredResult = drawClaimResults[rule];
     renderBoard();
+    if (drawClaimDialog.open) drawClaimDialog.close("claim");
     turn.focus();
     return true;
 }
@@ -1480,12 +1481,20 @@ offerDrawButton.addEventListener("click", toggleDrawOffer);
 acceptDrawButton.addEventListener("click", () => respondToDrawOffer(true));
 declineDrawButton.addEventListener("click", () => respondToDrawOffer(false));
 
-drawClaimDialog.addEventListener("close", () => {
+drawClaimDialog.addEventListener("submit", (event) => {
     const rule = pendingDrawClaim;
+    if (!drawClaimDialog.open || rule === null || event.submitter?.value !== "claim") return;
+
+    // Settle the clock when the intended move is submitted, before dismissing the dialog.
+    event.preventDefault();
     pendingDrawClaim = null;
-    if (rule !== null && drawClaimDialog.returnValue === "claim") {
-        claimDraw(rule, drawClaimMove.value);
+    if (!claimDraw(rule, drawClaimMove.value) && drawClaimDialog.open) {
+        drawClaimDialog.close();
     }
+});
+
+drawClaimDialog.addEventListener("close", () => {
+    if (!drawClaimDialog.open) pendingDrawClaim = null;
 });
 
 resignButton.addEventListener("click", () => {
