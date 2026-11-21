@@ -115,7 +115,7 @@ function harness(scheduleClose = callback => callback()) {
     };
 }
 
-const ruleSnapshot = 'JSON.stringify([currentPosition,currentPlayer,enPassant,castlingRights,halfmoveClock,movesPlayed,drawOfferedBy,drawOfferQueued,declaredResult,gameResult,pendingPromotion,pendingDrawClaim,pendingResignation,pendingNewGame,selectedSquare?.dataset.position,Array.from(positionOccurrences),moveHistory,gameStartedAt])';
+const ruleSnapshot = 'JSON.stringify([currentPosition,currentPlayer,enPassant,castlingRights,halfmoveClock,movesPlayed,drawOfferedBy,drawOfferQueued,declaredResult,gameResult,pendingPromotion,pendingDrawClaim,pendingResignation,pendingNewGame,selectedSquare?.dataset.position,Array.from(positionOccurrences),moveHistory])';
 function assertFreshGame(game) {
     assert.equal(game.evaluate('JSON.stringify(currentPosition)'), game.evaluate('JSON.stringify(startingPosition)'));
     assert.equal(game.evaluate('currentPlayer'), 'white');
@@ -186,9 +186,7 @@ function assertFreshGame(game) {
     const ranks = game.evaluate('currentPosition.slice()');
     const rights = game.evaluate('[castlingRights.white,castlingRights.black]');
     const history = game.evaluate('moveHistory');
-    const oldDate = game.evaluate('gameStartedAt');
     game.advance(120000);
-    assert(game.evaluate('getPgn()').includes('[Date "2031.01.31"]'));
     game.get('new-game').click();
     game.get('new-game-dialog').close('start');
     assertFreshGame(game);
@@ -197,12 +195,8 @@ function assertFreshGame(game) {
     assert.equal(game.evaluate('castlingRights.white'), rights[0]);
     assert.equal(game.evaluate('castlingRights.black'), rights[1]);
     assert.equal(game.evaluate('moveHistory'), history);
-    assert.notEqual(game.evaluate('gameStartedAt'), oldDate);
-    const pgn = game.evaluate('getPgn()');
-    for (const tag of ['[Date "2031.02.01"]', '[TimeControl "-"]', '[Result "*"]', '[PlyCount "0"]']) assert(pgn.includes(tag));
-    assert(pgn.endsWith('\n\n*\n\n'));
 }
-console.log('PASS: cancellation and confirmation preserve or reset real moves, rights, EP, offers, history, identities and PGN metadata.');
+console.log('PASS: cancellation and confirmation preserve or reset real moves, rights, EP, offers, history and identities.');
 
 {
     const game = harness();

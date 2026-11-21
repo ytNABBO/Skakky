@@ -37,7 +37,6 @@
     <button id="resign" class="game-button" type="button">Resign</button>
     <section id="move-history" aria-labelledby="moves-title">
         <h2 id="moves-title">Moves</h2>
-        <button id="download-pgn" class="game-button" type="button">Download PGN</button>
         <p id="move-history-empty">No moves played yet.</p>
         <table id="move-history-table" aria-labelledby="moves-title" hidden>
             <thead><tr><th scope="col">Move</th><th scope="col">White</th><th scope="col">Black</th></tr></thead>
@@ -46,7 +45,7 @@
     </section>
     <dialog id="new-game-dialog" class="game-dialog" aria-labelledby="new-game-title">
         <h2 id="new-game-title">Start a new game?</h2>
-        <p>The current board and move list will be cleared. Cancel and use Download PGN to keep this game.</p>
+        <p>The current board and move list will be cleared.</p>
         <form method="dialog">
             <button value="cancel" autofocus>Cancel</button>
             <button value="start">Start new game</button>

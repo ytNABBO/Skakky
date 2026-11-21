@@ -9,7 +9,6 @@ An interactive chess game built with HTML, CSS and JavaScript.
 - Legal moves, captures, check, checkmate and stalemate.
 - Castling, en passant and pawn promotion.
 - A numbered move list in FIDE algebraic notation.
-- PGN downloads for finished and unfinished games.
 - Automatic draws, draw claims, draw offers and resignation.
 - Dead-position draws for proven pawn blockades and bounded continuations.
 - Optional chess clocks with Fischer increments and time-forfeit results.
@@ -18,11 +17,9 @@ An interactive chess game built with HTML, CSS and JavaScript.
 
 ## Play
 
-Open `index.html` in a browser. Select a piece and choose a highlighted square. Press **New game** and confirm to start again without reloading. The current board and move list are cleared, so download the PGN first to keep a record. Each new game starts with White to move and clocks off.
+Open `index.html` in a browser. Select a piece and choose a highlighted square. Press **New game** and confirm to start again without reloading. The current board and move list will be cleared. Each new game starts with White to move and clocks off.
 
 The **Moves** table records each completed legal move in White and Black columns. It uses the English piece letters, `x` for captures, `+` for check and `#` for checkmate. Following FIDE Appendix C, castling appears as `0-0` or `0-0-0` and promotion as, for example, `e8Q`. An offer sent with a move is marked `(=)`. Illegal moves, cancelled dialogs and simulated analysis add no entries. The list remains visible after the game ends and is cleared when a new game starts or the page is reloaded.
-
-Press **Download PGN** to save the current game as a `.pgn` file. The export contains only completed moves, the result (`*` while play continues), the game's start date and time control. Unknown player names and site use `?`. The visible notation is converted to PGN SAN (`O-O`, `e8=Q`), and draw offers become comments, following the [PGN specification](https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm). Downloading keeps the game running; an overdue clock is settled before the file's result is chosen.
 
 Games are untimed by default. Before the first move, choose 3 minutes + 2 seconds per move, 5 minutes, or 10 minutes + 5 seconds per move and press **Start clock**. White's time starts immediately. After a legal move that keeps the game going, the mover receives the increment and the next player's clock starts once Skakky updates the board and move list. The time control locks when the clock starts or the first untimed move is played.
 
@@ -38,7 +35,6 @@ node tests/clock.cjs
 node tests/dead-position.cjs
 node tests/forced-dead.cjs
 node tests/notation.cjs
-node tests/pgn.cjs
 node tests/new-game.cjs
 ```
 
@@ -52,7 +48,6 @@ node tests/new-game.cjs
 - `tests/dead-position.cjs` — pawn, bishop and knight blockade proofs and dead-position tests.
 - `tests/forced-dead.cjs` — forced and branching continuations, search limits and analysis state preservation.
 - `tests/notation.cjs` — move notation, disambiguation and move-list integrity.
-- `tests/pgn.cjs` — PGN serialization, results, metadata and download behavior.
 - `tests/new-game.cjs` — confirmation, complete game resets and stale timer/dialog protection.
 
 ## Development workflow
