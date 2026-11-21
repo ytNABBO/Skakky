@@ -58,6 +58,7 @@ const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
 const positionOccurrences = new Map();
 const moveHistory = [];
+let drawClaimMovesCache = null;
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -107,6 +108,33 @@ const adjacentOffsets = [
     [0, -1], [0, 1],
     [1, -1], [1, 0], [1, 1]
 ];
+
+function copyPosition(position = currentPosition) {
+    return position.map(row => row.slice());
+}
+
+function copyCastlingRights(rights = castlingRights) {
+    return { white: { ...rights.white }, black: { ...rights.black } };
+}
+
+function restorePosition(saved) {
+    saved.position.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+    currentPlayer = saved.player;
+    enPassant = saved.enPassant;
+    Object.assign(castlingRights.white, saved.rights.white);
+    Object.assign(castlingRights.black, saved.rights.black);
+}
+
+function oppositePlayer(player) {
+    return player === "white" ? "black" : "white";
+}
+
+function closeGameDialogs(clearReturnValue = false) {
+    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog, newGameDialog]) {
+        if (dialog.open) dialog.close("");
+        if (clearReturnValue) dialog.returnValue = "";
+    }
+}
 
 function hasPendingGameDialog() {
     return pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation || pendingNewGame;
@@ -171,7 +199,7 @@ function syncChessClock() {
         return true;
     }
 
-    const opponent = player === "white" ? "black" : "white";
+    const opponent = oppositePlayer(player);
     declaredResult = cannotMateByContinuation(opponent)
         ? "Draw on time: the opponent cannot checkmate."
         : `${player === "white" ? "White" : "Black"} ran out of time. ${opponent === "white" ? "White" : "Black"} wins.`;
@@ -181,9 +209,7 @@ function syncChessClock() {
     pendingDrawClaim = null;
     pendingResignation = false;
     pendingNewGame = false;
-    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog, newGameDialog]) {
-        if (dialog.open) dialog.close("");
-    }
+    closeGameDialogs();
     renderBoard();
     turn.focus();
     return false;
@@ -270,10 +296,7 @@ function startNewGame() {
     pendingDrawClaim = null;
     pendingResignation = false;
     pendingNewGame = false;
-    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog, newGameDialog]) {
-        if (dialog.open) dialog.close("");
-        dialog.returnValue = "";
-    }
+    closeGameDialogs(true);
     startingPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
     currentPlayer = "white";
     selectedSquare = null;
@@ -517,7 +540,7 @@ function findCheckedKing(position, player) {
     }
 
     const column = position[row].indexOf(king);
-    const opponent = player === "white" ? "black" : "white";
+    const opponent = oppositePlayer(player);
     return isSquareAttacked(position, row, column, opponent) ? { row, column } : null;
 }
 
@@ -529,7 +552,7 @@ function getCastlingMoves(row, column, player) {
     }
 
     // Check the square the king crosses with its original square now empty.
-    const transitPosition = currentPosition.map(rank => rank.slice());
+    const transitPosition = copyPosition();
     transitPosition[row][column] = "";
     const rook = player === "white" ? "R" : "r";
     const moves = [];
@@ -583,7 +606,7 @@ function getLegalMoveOptions(row, column) {
     function keepsKingSafe(destination) {
         const targetRow = 8 - Number(destination[1]);
         const targetColumn = files.indexOf(destination[0]);
-        const position = currentPosition.map(rank => rank.slice());
+        const position = copyPosition();
         movePieceOnBoard(position, row, column, targetRow, targetColumn, piece);
         return findCheckedKing(position, player) === null;
     }
@@ -821,18 +844,11 @@ function hasNoMatingContinuation(matingPlayer, maxPlies = deadPositionPlyLimit, 
 
     function savePosition() {
         return {
-            position: currentPosition.map(rank => rank.slice()),
+            position: copyPosition(),
             player: currentPlayer,
             enPassant,
-            rights: { white: { ...castlingRights.white }, black: { ...castlingRights.black } }
+            rights: copyCastlingRights()
         };
-    }
-    function restorePosition(saved) {
-        saved.position.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
-        currentPlayer = saved.player;
-        enPassant = saved.enPassant;
-        Object.assign(castlingRights.white, saved.rights.white);
-        Object.assign(castlingRights.black, saved.rights.black);
     }
 
     const original = savePosition();
@@ -882,7 +898,7 @@ function hasNoMatingContinuation(matingPlayer, maxPlies = deadPositionPlyLimit, 
                     revokeRookCastlingRight(castlingRights, capturedPiece, toRow, toColumn);
                     enPassant = piece.toLowerCase() === "p" && Math.abs(toRow - row) === 2
                         ? { pawnRow: toRow, column: toColumn, targetRow: (row + toRow) / 2 } : null;
-                    currentPlayer = currentPlayer === "white" ? "black" : "white";
+                    currentPlayer = oppositePlayer(currentPlayer);
                     provedSafe = allContinuationsSafe(depth + 1);
                 } finally {
                     restorePosition(parent);
@@ -992,23 +1008,28 @@ function canClaimDrawNow(rule) {
 function wouldRepeatPosition(row, column, destination, piece) {
     const targetRow = 8 - Number(destination[1]);
     const targetColumn = files.indexOf(destination[0]);
-    const position = currentPosition.map(rank => rank.slice());
-    const rights = { white: { ...castlingRights.white }, black: { ...castlingRights.black } };
+    const position = copyPosition();
+    const rights = copyCastlingRights();
     movePieceOnBoard(position, row, column, targetRow, targetColumn, piece);
     updateMovingCastlingRights(rights, piece, row, column);
 
     // These moves cannot create an en passant right.
-    const nextPlayer = currentPlayer === "white" ? "black" : "white";
+    const nextPlayer = oppositePlayer(currentPlayer);
     const key = serializePosition(position, nextPlayer, rights, "");
     return (positionOccurrences.get(key) ?? 0) >= claimRepetitionLimit - 1;
 }
 
 function getIntendedDrawClaimMoves(rule) {
+    const cacheKey = `${rule}:${getPositionKey()}:${halfmoveClock}`;
+    if (drawClaimMovesCache?.key === cacheKey) return drawClaimMovesCache.moves;
+
     const claimMoves = [];
     if (rule === "fifty" && halfmoveClock !== claimHalfmoveLimit - 1) {
+        drawClaimMovesCache = { key: cacheKey, moves: claimMoves };
         return claimMoves;
     }
     if (rule === "threefold" && !Array.from(positionOccurrences.values()).some(count => count >= claimRepetitionLimit - 1)) {
+        drawClaimMovesCache = { key: cacheKey, moves: claimMoves };
         return claimMoves;
     }
 
@@ -1034,6 +1055,7 @@ function getIntendedDrawClaimMoves(rule) {
         }
     }
 
+    drawClaimMovesCache = { key: cacheKey, moves: claimMoves };
     return claimMoves;
 }
 
@@ -1243,7 +1265,7 @@ function movePiece(row, column, promotion = null) {
     movesPlayed++;
     drawOfferedBy = drawOfferQueued ? currentPlayer : null;
     drawOfferQueued = false;
-    currentPlayer = currentPlayer === "white" ? "black" : "white";
+    currentPlayer = oppositePlayer(currentPlayer);
     recordCurrentPosition();
     renderBoard();
     const checkSuffix = gameResult?.startsWith("Checkmate.") ? "#"
@@ -1315,6 +1337,7 @@ function renderBoard() {
     renderClocks();
     clearSelection();
     board.replaceChildren();
+    const squareContainer = document.createDocumentFragment?.() ?? board;
     const turnMessage = checkedKing === null ? `${playerName} to move` : `${playerName} to move (in check)`;
     turn.textContent = gameResult ?? turnMessage;
     turn.dataset.player = currentPlayer;
@@ -1380,9 +1403,10 @@ function renderBoard() {
                 square.appendChild(pieceElement);
             }
 
-            board.appendChild(square);
+            squareContainer.appendChild(square);
         }
     }
+    if (squareContainer !== board) board.appendChild(squareContainer);
 }
 
 board.addEventListener("keydown", (event) => {
