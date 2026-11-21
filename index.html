@@ -9,6 +9,7 @@
 </head>
 <body>
     <h1>Skakky</h1>
+    <button id="new-game" class="game-button" type="button">New game</button>
     <div id="clock-setup">
         <label for="time-control">Time control</label>
         <select id="time-control" aria-describedby="clock-help">
@@ -43,6 +44,14 @@
             <tbody id="move-history-body"></tbody>
         </table>
     </section>
+    <dialog id="new-game-dialog" class="game-dialog" aria-labelledby="new-game-title">
+        <h2 id="new-game-title">Start a new game?</h2>
+        <p>The current board and move list will be cleared. Cancel and use Download PGN to keep this game.</p>
+        <form method="dialog">
+            <button value="cancel" autofocus>Cancel</button>
+            <button value="start">Start new game</button>
+        </form>
+    </dialog>
     <dialog id="resignation" class="game-dialog" aria-labelledby="resignation-title">
         <h2 id="resignation-title">Resign this game?</h2>
         <form method="dialog">

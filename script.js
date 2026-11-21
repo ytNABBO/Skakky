@@ -18,6 +18,8 @@ const moveHistoryBody = document.getElementById("move-history-body");
 const moveHistoryTable = document.getElementById("move-history-table");
 const moveHistoryEmpty = document.getElementById("move-history-empty");
 const downloadPgnButton = document.getElementById("download-pgn");
+const newGameButton = document.getElementById("new-game");
+const newGameDialog = document.getElementById("new-game-dialog");
 const timeControl = document.getElementById("time-control");
 const startClockButton = document.getElementById("start-clock");
 const clockPanel = document.getElementById("clock-panel");
@@ -33,6 +35,7 @@ const timeControls = {
 let chessClock = null;
 let clockTimer = null;
 let pendingResignation = false;
+let pendingNewGame = false;
 let currentPlayer = "white";
 let selectedSquare = null;
 let gameResult = null;
@@ -56,7 +59,7 @@ const deadPositionPlyLimit = 8;
 const deadPositionNodeLimit = 64;
 const positionOccurrences = new Map();
 const moveHistory = [];
-const gameStartedAt = new Date();
+let gameStartedAt = new Date();
 const promotionChoices = ["q", "r", "b", "n"];
 const castlingRights = {
     white: { kingside: true, queenside: true },
@@ -107,6 +110,10 @@ const adjacentOffsets = [
     [1, -1], [1, 0], [1, 1]
 ];
 
+function hasPendingGameDialog() {
+    return pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation || pendingNewGame;
+}
+
 // Use elapsed time rather than interval counts, including after background-tab delays.
 function formatClockTime(milliseconds) {
     const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
@@ -128,7 +135,7 @@ function renderClocks() {
 
 function startChessClock() {
     if (chessClock !== null || movesPlayed > 0 || gameResult !== null
-        || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation
+        || hasPendingGameDialog()
         || !Object.hasOwn(timeControls, timeControl.value)) {
         return false;
     }
@@ -175,7 +182,8 @@ function syncChessClock() {
     pendingPromotion = null;
     pendingDrawClaim = null;
     pendingResignation = false;
-    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog]) {
+    pendingNewGame = false;
+    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog, newGameDialog]) {
         if (dialog.open) dialog.close("");
     }
     renderBoard();
@@ -322,6 +330,45 @@ function downloadPgn() {
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+}
+
+function startNewGame() {
+    stopChessClock();
+    chessClock = null;
+    // Invalidate old dialog callbacks before dismissing their UI.
+    pendingPromotion = null;
+    pendingDrawClaim = null;
+    pendingResignation = false;
+    pendingNewGame = false;
+    for (const dialog of [promotionDialog, drawClaimDialog, resignationDialog, newGameDialog]) {
+        if (dialog.open) dialog.close("");
+        dialog.returnValue = "";
+    }
+    startingPosition.forEach((rank, row) => currentPosition[row].splice(0, 8, ...rank));
+    currentPlayer = "white";
+    selectedSquare = null;
+    gameResult = null;
+    declaredResult = null;
+    enPassant = null;
+    halfmoveClock = 0;
+    movesPlayed = 0;
+    drawOfferQueued = false;
+    drawOfferedBy = null;
+    for (const player of ["white", "black"]) {
+        castlingRights[player].kingside = true;
+        castlingRights[player].queenside = true;
+    }
+    moveHistory.splice(0);
+    positionOccurrences.clear();
+    gameStartedAt = new Date();
+    timeControl.value = "";
+    resigningPlayerSelect.value = "white";
+    drawClaimMove.replaceChildren();
+    drawClaimMove.value = "";
+    recordCurrentPosition();
+    renderBoard();
+    renderMoveHistory();
+    timeControl.focus();
 }
 
 // Find each piece's possible moves and captures.
@@ -961,7 +1008,7 @@ function cannotMateByMaterial(position, player) {
 
 function resign(player = currentPlayer) {
     if ((player !== "white" && player !== "black") || !syncChessClock()
-        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+        || gameResult !== null || hasPendingGameDialog()) {
         return false;
     }
     const opponent = player === "white" ? "black" : "white";
@@ -1061,7 +1108,7 @@ function getIntendedDrawClaimMoves(rule) {
 
 function claimDraw(rule, intendedMove = "") {
     if (!syncChessClock() || !Object.hasOwn(drawClaimResults, rule)
-        || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+        || gameResult !== null || hasPendingGameDialog()) {
         return false;
     }
 
@@ -1104,7 +1151,7 @@ function updateDrawOfferControls() {
 }
 
 function toggleDrawOffer() {
-    if (!syncChessClock() || !canQueueDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || !canQueueDrawOffer() || hasPendingGameDialog()) {
         return false;
     }
 
@@ -1114,7 +1161,7 @@ function toggleDrawOffer() {
 }
 
 function respondToDrawOffer(accept) {
-    if (!syncChessClock() || !hasIncomingDrawOffer() || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || !hasIncomingDrawOffer() || hasPendingGameDialog()) {
         return false;
     }
 
@@ -1147,11 +1194,11 @@ function clearSelection() {
 
     status.textContent = gameResult === null
         ? `Select a ${currentPlayer} piece, then choose a marked square.`
-        : "Reload the page to play again.";
+        : "Start a new game to play again.";
 }
 
 function selectPiece(square, piece, row, column) {
-    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || hasPendingGameDialog()) {
         return;
     }
 
@@ -1206,7 +1253,7 @@ function selectPiece(square, piece, row, column) {
 }
 
 function movePiece(row, column, promotion = null) {
-    if (!syncChessClock() || gameResult !== null || selectedSquare === null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || selectedSquare === null || hasPendingGameDialog()) {
         return false;
     }
 
@@ -1291,7 +1338,7 @@ function movePiece(row, column, promotion = null) {
     const moveMessage = castledSide === null
         ? `${movingPlayer} ${pieceNames[piece.toLowerCase()]} ${result}`
         : `${movingPlayer} castled ${castledSide}`;
-    const nextInstruction = gameResult === null ? `${turn.textContent}.` : "Reload the page to play again.";
+    const nextInstruction = gameResult === null ? `${turn.textContent}.` : "Start a new game to play again.";
     status.textContent = `${moveMessage}. ${nextInstruction}`;
     if (gameResult !== null) {
         turn.focus();
@@ -1408,7 +1455,7 @@ function renderBoard() {
 }
 
 board.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && selectedSquare !== null && pendingPromotion === null && pendingDrawClaim === null) {
+    if (event.key === "Escape" && selectedSquare !== null && !hasPendingGameDialog()) {
         const previousSelection = selectedSquare;
         clearSelection();
         previousSelection.focus();
@@ -1425,7 +1472,7 @@ promotionDialog.addEventListener("close", () => {
 });
 
 function openDrawClaim(rule) {
-    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) {
+    if (!syncChessClock() || gameResult !== null || hasPendingGameDialog()) {
         return;
     }
     if (canClaimDrawNow(rule)) {
@@ -1470,7 +1517,7 @@ drawClaimDialog.addEventListener("close", () => {
 });
 
 resignButton.addEventListener("click", () => {
-    if (!syncChessClock() || gameResult !== null || pendingPromotion !== null || pendingDrawClaim !== null || pendingResignation) return;
+    if (!syncChessClock() || gameResult !== null || hasPendingGameDialog()) return;
     pendingResignation = true;
     resigningPlayerSelect.value = currentPlayer;
     resignationDialog.returnValue = "";
@@ -1484,6 +1531,29 @@ resignationDialog.addEventListener("close", () => {
         if (!resign(resigningPlayerSelect.value) && gameResult === null) resignButton.focus();
     } else if (wasPending) {
         resignButton.focus();
+    }
+});
+
+newGameButton.addEventListener("click", () => {
+    // Settle the clock and allow a restart even if the game has ended.
+    syncChessClock();
+    if (hasPendingGameDialog()) return;
+    pendingNewGame = true;
+    newGameDialog.returnValue = "";
+    newGameDialog.showModal();
+});
+
+newGameDialog.addEventListener("close", () => {
+    // A timeout can queue a close event before the dialog is reopened.
+    if (newGameDialog.open || !pendingNewGame) return;
+    // An overdue clock invalidates this confirmation before the pending flag is consumed.
+    syncChessClock();
+    if (!pendingNewGame) return;
+    pendingNewGame = false;
+    if (newGameDialog.returnValue === "start") {
+        startNewGame();
+    } else {
+        newGameButton.focus();
     }
 });
 
