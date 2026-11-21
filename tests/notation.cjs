@@ -22,7 +22,7 @@ function harness() {
                 remove(...names) { names.forEach(name => classes.delete(name)); }
             },
             addEventListener(type, listener) { listeners.set(type, listener); },
-            dispatch(type) { listeners.get(type)?.(); },
+            dispatch(type, event) { listeners.get(type)?.(event); },
             setAttribute(name, value) { this.attributes[name] = String(value); },
             appendChild(child) { this.children.push(child); },
             replaceChildren(...children) { this.children = children; },
@@ -205,7 +205,7 @@ console.log('PASS: en passant, all promotion choices, no-equals FIDE promotion n
     game.elements.get('promotion').close('');
     assert.deepEqual(game.history(), [], 'Cancelling promotion must not append a half-completed move.');
     assert.equal(game.move('b7', 'b8'), false);
-    game.elements.get('promotion').close('q');
+    game.elements.get('promotion').dispatch('submit', { submitter: { value: 'q' }, preventDefault() {} });
     assert.deepEqual(game.history(), [{ number: 1, player: 'white', notation: 'b8Q' }]);
 }
 {

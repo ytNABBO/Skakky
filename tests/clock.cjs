@@ -7,7 +7,7 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 // A small interactive DOM exercises the real square and dialog event handlers.
-function harness() {
+function harness(scheduleClose = callback => callback()) {
     let now = 0;
     let nextTimer = 1;
     const timers = new Map();
@@ -46,7 +46,16 @@ function harness() {
             replaceChildren(...children) { node.children = children; },
             focus() { document.activeElement = node; },
             showModal() { node.open = true; },
-            close(value = '') { node.open = false; node.returnValue = value; node.dispatch('close'); },
+            close(value = '') {
+                node.open = false;
+                node.returnValue = value;
+                scheduleClose(() => node.dispatch('close'));
+            },
+            submit(value) {
+                let prevented = false;
+                node.dispatch('submit', { submitter: { value }, preventDefault() { prevented = true; } });
+                if (!prevented) node.close(value);
+            },
             querySelector(selector) { return node.querySelectorAll(selector)[0] ?? null; },
             querySelectorAll(selector) {
                 const descendants = [];
@@ -225,12 +234,58 @@ for (const confirm of [false, true]) {
     assert.equal(game.get('promotion').open, true);
     assert.equal(game.active(), 'white', 'Promotion is incomplete until a piece is chosen.');
     game.advance(3500);
-    game.get('promotion').close(confirm ? 'q' : '');
+    game.get('promotion').submit(confirm ? 'q' : '');
     assert.equal(game.remaining('white'), confirm ? 177500 : 175500);
     assert.equal(game.active(), confirm ? 'black' : 'white');
     assert.equal(game.square('b8').dataset.piece, confirm ? 'Q' : '');
 }
 console.log('PASS: illegal moves, background settlement, promotion thinking time and promotion cancellation.');
+
+for (const beforeFlag of [true, false]) {
+    const closeEvents = [];
+    const game = harness(callback => closeEvents.push(callback));
+    game.fixture({ a1: 'K', b7: 'P', h6: 'k', h7: 'p' });
+    game.start('300+0');
+    game.move('b7', 'b8');
+    const dialog = game.get('promotion');
+    assert.equal(dialog.open, true);
+    const close = dialog.close;
+    dialog.close = value => {
+        game.advance(1, false);
+        close(value);
+    };
+    game.advance(beforeFlag ? 299999 : 300000, false);
+    dialog.submit('q');
+    assert.equal(dialog.open, false);
+    assert.equal(closeEvents.length, 1);
+
+    game.advance(1);
+    closeEvents.shift()();
+    assert.equal(game.result(), beforeFlag ? 'Black to move' : 'White ran out of time. Black wins.');
+    assert.equal(game.square('b7').dataset.piece, beforeFlag ? '' : 'P');
+    assert.equal(game.square('b8').dataset.piece, beforeFlag ? 'Q' : '');
+    assert.equal(game.active(), beforeFlag ? 'black' : null);
+    assert.equal(game.remaining('white'), beforeFlag ? 1 : 0);
+    assert.equal(game.evaluate('moveHistory.length'), beforeFlag ? 1 : 0);
+}
+console.log('PASS: promotion submitted before flag fall completes once, even when its close event arrives after the deadline.');
+
+{
+    const closeEvents = [];
+    const game = harness(callback => closeEvents.push(callback));
+    game.fixture({ a1: 'K', b7: 'P', h6: 'k', g2: 'p' });
+    const dialog = game.get('promotion');
+    game.move('b7', 'b8');
+    dialog.submit('q');
+    game.move('g2', 'g1');
+    assert.equal(dialog.open, true);
+    closeEvents.shift()();
+    dialog.submit('r');
+    closeEvents.shift()();
+    assert.equal(game.square('g1').dataset.piece, 'r');
+    assert.equal(game.evaluate('moveHistory.length'), 2);
+}
+console.log('PASS: a delayed close event cannot cancel the next player’s open promotion.');
 
 for (const player of ['white', 'black']) {
     const game = harness();

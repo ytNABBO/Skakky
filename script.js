@@ -1241,8 +1241,9 @@ function movePiece(row, column, promotion = null) {
         return false;
     }
 
-    if (promotion !== null && (!reachesLastRank || !promotionChoices.includes(promotion))) {
-        return false;
+    if (promotion !== null) {
+        if (!reachesLastRank || !promotionChoices.includes(promotion)) return false;
+        if (promotionDialog.open) promotionDialog.close(promotion);
     }
 
     const notation = getAlgebraicMove(fromRow, fromColumn, row, column, promotion);
@@ -1424,13 +1425,21 @@ board.addEventListener("keydown", (event) => {
     }
 });
 
-promotionDialog.addEventListener("close", () => {
+promotionDialog.addEventListener("submit", (event) => {
     const target = pendingPromotion;
+    const promotion = event.submitter?.value;
+    if (!promotionDialog.open || target === null || !promotionChoices.includes(promotion)) return;
+
+    // Settle the clock and play the choice during submission, before the queued close event.
+    event.preventDefault();
     pendingPromotion = null;
-    const promotion = promotionDialog.returnValue;
-    if (target !== null && promotionChoices.includes(promotion)) {
-        movePiece(target.row, target.column, promotion);
+    if (!movePiece(target.row, target.column, promotion) && promotionDialog.open) {
+        promotionDialog.close();
     }
+});
+
+promotionDialog.addEventListener("close", () => {
+    if (!promotionDialog.open) pendingPromotion = null;
 });
 
 function openDrawClaim(rule) {
